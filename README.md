@@ -1,283 +1,155 @@
-# TorToiSe
+# AI Voice Cloning for Retards and Savants
 
-Tortoise is a text-to-speech program built with the following priorities:
+This [rentry](https://rentry.org/AI-Voice-Cloning/) aims to serve as both a foolproof guide for setting up AI voice cloning tools for legitimate, local use on Windows (with an Nvidia GPU), as well as a stepping stone for anons that genuinely want to play around with TorToiSe.
 
-1. Strong multi-voice capabilities.
-2. Highly realistic prosody and intonation.
+Similar to my own findings for Stable Diffusion image generation, this rentry may appear a little disheveled as I note my new findings with TorToiSe. Please keep this in mind if the guide seems to shift a bit or sound confusing.
 
-This repo contains all the code needed to run Tortoise TTS in inference mode.
+>\>B-but what about the colab notebook/hugging space instance??
 
-A (*very*) rough draft of the Tortoise paper is now available in doc format. I would definitely appreciate any comments, suggestions or reviews:
-https://docs.google.com/document/d/13O_eyY65i6AkNrN_LdPhpUjGhyTNKYHvDrIvHnHe1GA
+I link those a bit later on as alternatives for Windows+AMD users. You're free to skip the installation section and jump after that.
 
-### Version history
+>\>Ugh... why bother when I can just abuse 11.AI?
 
-#### v2.4; 2022/5/17
-- Removed CVVP model. Found that it does not, in fact, make an appreciable difference in the output.
-- Add better debugging support; existing tools now spit out debug files which can be used to reproduce bad runs.
+I very much encourage (You) to use 11.AI while it's still viable to use. For the layman, it's easier to go through the hoops of coughing up the $5 or abusing the free trial over actually setting up a TorToiSe environment and dealing with its quirks.
 
-#### v2.3; 2022/5/12
-- New CLVP-large model for further improved decoding guidance.
-- Improvements to read.py and do_tts.py (new options)
+However, I also encourage your own experimentation with TorToiSe, as it's very, very promising, it just takes a little love and elbow grease.
 
-#### v2.2; 2022/5/5
-- Added several new voices from the training set.
-- Automated redaction. Wrap the text you want to use to prompt the model but not be spoken in brackets.
-- Bug fixes
+## Installing
 
-#### v2.1; 2022/5/2
-- Added ability to produce totally random voices.
-- Added ability to download voice conditioning latent via a script, and then use a user-provided conditioning latent.
-- Added ability to use your own pretrained models.
-- Refactored directory structures.
-- Performance improvements & bug fixes.
+Below is a very retard-proof guide for getting the software set up. In the future, I'll include a batch script to use for those that don't need tight handholding.
 
-## What's in a name?
+For setting up on Linux, the general framework should be the same, but left as an exercise to the reader.
 
-I'm naming my speech-related repos after Mojave desert flora and fauna. Tortoise is a bit tongue in cheek: this model
-is insanely slow. It leverages both an autoregressive decoder **and** a diffusion decoder; both known for their low
-sampling rates. On a K80, expect to generate a medium sized sentence every 2 minutes.
+For Windows users with an AMD GPU, tough luck, as ROCm drivers are not (easily) available for Windows, and requires inane patches with PyTorch. Consider using the [Colab notebook](https://colab.research.google.com/drive/1wVVqUPqwiDBUVeWWOUNglpGhU3hg_cbR?usp=sharing), or the [Hugging Face space](https://huggingface.co/spaces/mdnestor/tortoise), for `tortoise-tts`.
 
-## Demos
+Lots of available RAM seems to be a requirement, as I see Python eating up 8GiB for generations, and if I'm not careful I'll get OOM errors from the software, so be cautious of memory problems if you're doing other things while it runs in the background. For long text generations, you might also exhaust your available VRAM with how the software automatically calculates batch size (for example, a 6GiB of VRAM card using 4GiB for the autoregressive sampling step, but the CLVP matching step requiring more than what's available).
 
-See [this page](http://nonint.com/static/tortoise_v2_examples.html) for a large list of example outputs.
+### Pre-Requirements
 
-Cool application of Tortoise+GPT-3 (not by me): https://twitter.com/lexman_ai
+Anaconda: https://www.anaconda.com/products/distribution
 
-## Usage guide
+Git (optional): https://git-scm.com/download/win
 
-### Colab
+### Setup
 
-Colab is the easiest way to try this out. I've put together a notebook you can use here:
-https://colab.research.google.com/drive/1wVVqUPqwiDBUVeWWOUNglpGhU3hg_cbR?usp=sharing
+Download Anaconda and run the installer.
 
-### Local Installation
+After installing `conda`, open the Start Menu and search for `Anaconda Powershell Prompt`. Type `cd `, then drag and drop the folder you want to work in (experienced users can just `cd <path>` directly).
 
-If you want to use this on your own computer, you must have an NVIDIA GPU.
+Paste `git clone https://git.ecker.tech/mrq/tortoise-tts` to download TorToiSe and additional scripts. Inexperienced users can just download the repo as a ZIP, and extract.
 
-First, install pytorch using these instructions: [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/).
-On Windows, I **highly** recommend using the Conda installation path. I have been told that if you do not do this, you
-will spend a lot of time chasing dependency problems.
+Then move into that folder with `cd tortoise-tts`. Afterwards, enter `setup.bat` to automatically enter all the remaining commands.
 
-Next, install TorToiSe and it's dependencies:
+If you've done everything right with installing Anaconda, you shouldn't have any errors.
 
-```shell
-git clone https://github.com/neonbjb/tortoise-tts.git
-cd tortoise-tts
-python -m pip install -r ./requirements.txt
-python setup.py install
-```
+## Preparing Voice Samples
 
-If you are on windows, you will also need to install pysoundfile: `conda install -c conda-forge pysoundfile`
+Now that the tough part is dealt with, it's time to prepare voice sample clips to use.
 
-### do_tts.py
+Unlike training embeddings for AI image generations, preparing a "dataset" for voice cloning is very simple. While the repo suggests using short clips of about ten seconds each, you aren't required to manually snip them up. I'm not sure which way is "better", as some voices work perfectly fine with two clips with minutes each worth of audio, while other voices work better with ten short clips.
 
-This script allows you to speak a single phrase with one or more voices.
-```shell
-python tortoise/do_tts.py --text "I'm going to speak this" --voice random --preset fast
-```
+As a general rule of thumb, try to source clips that aren't noisy, and are entirely just the subject you are trying to clone. If you must, run your source sample through a background music/noise remover (how to is an exercise left to the reader). It isn't entirely a detriment if you're unable to provide clean audio, however. Just be wary that you might have some headaches with getting acceptable output.
 
-### read.py
+After sourcing your clips, you have two options:
+* use all of your samples for voice cloning, providing as much coverage for whatever you may want
+* isolate the best of your samples into a few clips (around ten clips each of about ten seconds each), focusing on samples that best match what you're looking to get out of it
 
-This script provides tools for reading large amounts of text.
+Either methods work, but some workloads tend to favor one over the other. If you're running out of options on improving overall cloning quality, consider switching to the other method. In my opinion, the first one seems to work better overall, and rely on other means of improving the quality of cloning.
 
-```shell
-python tortoise/read.py --textfile <your text to be read> --voice random
-```
+If you're looking to trim your clips, in my opinion, ~~Audacity~~ Tenacity works good enough, as you can easily output your clips into the proper format (22050 Hz sampling rate, 32-bit float encoding), but some of the time, the software will print out some warning message (`WavFileWarning: Chunk (non-data) not understood, skipping it.`), it's safe to assume you need to properly remux it with `ffmpeg`, simply with `ffmpeg -i [input] -ar 22050 -c:a pcm_f32le [output].wav`. Power users can use the previous command instead of relying on Tenacity to remux.
 
-This will break up the textfile into sentences, and then convert them to speech one at a time. It will output a series
-of spoken clips as they are generated. Once all the clips are generated, it will combine them into a single file and
-output that as well.
+After preparing your clips as WAV files at a sample rate of 22050 Hz, open up the `tortoise-tts` folder you're working in, navigate to `./tortoise/voice/`, create a new folder in whatever name you want, then dump your clips into that folder. While you're in the `voice` folder, you can take a look at the other provided voices.
 
-Sometimes Tortoise screws up an output. You can re-generate any bad clips by re-running `read.py` with the --regenerate
-argument.
+**!**NOTE**!**: having a ton of files, regardless of size, substantially increases the time it takes to initialize the voice. I've had it take a while to load 227 or so samples of SA2 Shadow this way. Consider combining them all in one file through Tenacity, with dropping all of your audio files, then Select > Tracks > All, then Tracks > Align Tracks > Align End to End, then exporting the WAV. This does not introduce padding, however.
 
-### API
+## Using the Software
 
-Tortoise can be used programmatically, like so:
+Now you're ready to generate clips. With the `conda` prompt still open, simply run the web UI with `python app.py`, and wait for it to print out a URL to open in your browser, something like `http://127.0.0.1:7861`.
 
-```python
-reference_clips = [utils.audio.load_audio(p, 22050) for p in clips_paths]
-tts = api.TextToSpeech()
-pcm_audio = tts.tts_with_preset("your text here", voice_samples=reference_clips, preset='fast')
-```
+If you're looking to access your copy of TorToiSe from outside your local network, pass `--share` into the command (for example, `python app.py --share`). You'll get a temporary gradio link to use.
 
-## Voice customization guide
+You'll be presented with a bunch of options, but do not be overwhelmed, as most of the defaults are sane, but below are a rough explanation on which input does what:
+* `Text`: text you want to be read
+* `Emotion`: the "emotion" used for the delivery. This is a shortcut to starting with `[I am really ${emotion}],` in your text box. I assume the emotion is deduced during the CLVP pass.
+* `Voice`: the voice you want to clone. You can select `custom` if you want to use input from your microphone.
+* `Record voice`: Not required, unless you use `custom`.
+* `Preset`: shortcut values for sample count and iteration steps. Use `none` if you want to provide your own values. Better presets rresult in better quality at the cost of computation time.
+* `Seed`: initializes the PRNG initially to this value, use this if you want to reproduce a generated voice. Currently, I don't have a way to expose the seed used.
+* `Candidates`: number of outputs to generate, starting from the best candidate. Depending on your iteration steps, generating the final sound files could be cheap, but they only offer alternatives to the samples generated to pull from (in other words, the later candidates perform worse), so don't be compelled to generate a ton of candidates.
+* `Autoregressive samples`: analogous to samples in image generation. More samples = better resemblance / clone quality, at the cost of performance.
+* `Diffusion iterations`: influences audio sound quality in the final output. More iterations = higher quality sound. This step is relatively cheap, so do not be discouraged from increasing this.
+* `Temperature`: how much randomness to introduce to the generated samples. Lower values = better resemblance to the source samples, but some temperature is still required for great output. This value definitely requires playing around depending on the voice you use.
 
-Tortoise was specifically trained to be a multi-speaker model. It accomplishes this by consulting reference clips.
+After you fill everything out, click `Submit`, and wait for your outpu in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
 
-These reference clips are recordings of a speaker that you provide to guide speech generation. These clips are used to determine many properties of the output, such as the pitch and tone of the voice, speaking speed, and even speaking defects like a lisp or stuttering. The reference clip is also used to determine non-voice related aspects of the audio output like volume, background noise, recording quality and reverb.
 
-### Random voice
 
-I've included a feature which randomly generates a voice. These voices don't actually exist and will be random every time you run
-it. The results are quite fascinating and I recommend you play around with it!
+### Command Line Use (legacy)
 
-You can use the random voice by passing in 'random' as the voice name. Tortoise will take care of the rest.
+Ignore this if you're using the web UI, as I'm leaving this in for power users who insist on using the command line. Information below may be a bit outdated.
 
-For the those in the ML space: this is created by projecting a random vector onto the voice conditioning latent space.
+With the `conda` command prompt still open, simply paste (without the `[]`:
 
-### Provided voices
+`python tortoise/do_tts.py --text "[text you want]" --voice [voice folder name]`
 
-This repo comes with several pre-packaged voices. Voices prepended with "train_" came from the training set and perform
-far better than the others. If your goal is high quality speech, I recommend you pick one of them. If you want to see
-what Tortoise can do for zero-shot mimicking, take a look at the others.
+and wait for the magic. If you have a beefy enough GPU, or a short enough prompt, you should have your output relatively quick.
 
-### Adding a new voice
+If nothing funny is printed to the console window, your outputs will show up in the `results` folder under the `tortoise-tts` workspace.
 
-To add new voices to Tortoise, you will need to do the following:
+If you want something super quick to test, add `--preset ultra_fast` for a cost in quality. If your samples seem good enough, or the default preset (`fast`) is not quite right, you can add `--preset standard` to get higher quality outputs at a cost of time.
 
-1. Gather audio clips of your speaker(s). Good sources are YouTube interviews (you can use youtube-dl to fetch the audio), audiobooks or podcasts. Guidelines for good clips are in the next section.
-2. Cut your clips into ~10 second segments. You want at least 3 clips. More is better, but I only experimented with up to 5 in my testing.
-3. Save the clips as a WAV file with floating point format and a 22,050 sample rate.
-4. Create a subdirectory in voices/
-5. Put your clips in that subdirectory.
-6. Run tortoise utilities with --voice=<your_subdirectory_name>.
+By default, a batch of three clips will be outputted, as it's easier to grab clips from the generate samples, than it is to generate the samples itself. If you want more (or less) clips generated at once, add `--candidates [number]` to the command. It's a pretty good idea to bump this up and pick from the best, rather than re-run the script multiple times. However, it appears the quality drops the more it generates.
 
-### Picking good reference clips
+With the `--voice [name]` flag, you can combine voices to be "mixed" together by passing `--voice [name1]&[name2]`. I believe there's an upward limit of 3. I have not yet experimented with this, but only noticed this from reading the `do_tts.py` script.
 
-As mentioned above, your reference clips have a profound impact on the output of Tortoise. Following are some tips for picking
-good clips:
+With the `--voice [name]` flag, you can have it iterate through a list of voices to read your text with one command by passing `--voice [name1],[name2]`. I do not believe there's a limit, but I'm not sure why you would need to have multiple voices recite the same text.
 
-1. Avoid clips with background music, noise or reverb. These clips were removed from the training dataset. Tortoise is unlikely to do well with them.
-2. Avoid speeches. These generally have distortion caused by the amplification system.
-3. Avoid clips from phone calls.
-4. Avoid clips that have excessive stuttering, stammering or words like "uh" or "like" in them.
-5. Try to find clips that are spoken in such a way as you wish your output to sound like. For example, if you want to hear your target voice read an audiobook, try to find clips of them reading a book.
-6. The text being spoken in the clips does not matter, but diverse text does seem to perform better.
+If you want a little variety (*sort of* similar to the stability slider), you can use the `--cvvp_amount` flag. From my quick experiments, a value of `0.1` will noticeably vary the voice, so use this value with caution. Additionally, it seems to increase the `Computing best candidates` pass immensely.
 
-## Advanced Usage
+Similar to image generation, you can utilize prompt editing to change emotion. In the documentation, you can use something like `[I am really sad,]` before the part where you want an (attempted) sad delivery. **!**NOTE**!**: Prompt engineering seems to not work, as it just outputs eldritch noises.
 
-### Generation settings
+**!**NOTE**!**: If you see a `WavFileWarning: Chunk (non-data) not understood, skipping it.` error, one of your source files is malformed. It's recommended to re-encode your sound files to make sure it works. For me, running it back in ~~Audacity~~ Tenacity doesn't seem to fix it, but remuxing it with `ffmpeg -i [source].wav -ar 22050 [fixed].wav` seemed to fix it. Outputs where any file gets this error seems to give whacky behavior, from pretty random voices to guttural noises.
 
-Tortoise is primarily an autoregressive decoder model combined with a diffusion model. Both of these have a lot of knobs
-that can be turned that I've abstracted away for the sake of ease of use. I did this by generating thousands of clips using
-various permutations of the settings and using a metric for voice realism and intelligibility to measure their effects. I've
-set the defaults to the best overall settings I was able to find. For specific use-cases, it might be effective to play with
-these settings (and it's very likely that I missed something!)
+There seems to be a huge suite of additional flags to mess around with if you're using the `api.py` script, and seems to be relatively easy to adjust by adding more flags in the `do_tts.py` script, but most of them seem to be fine-tuned and not worth adjusting.
 
-These settings are not available in the normal scripts packaged with Tortoise. They are available, however, in the API. See
-```api.tts``` for a full list.
+## Example(s)
 
-### Prompt engineering
+Below are some outputs I deem substantial enough to share. As I continue delving into TorToiSe, I'll supply more examples and the values I use.
 
-Some people have discovered that it is possible to do prompt engineering with Tortoise! For example, you can evoke emotion
-by including things like "I am really sad," before your text. I've built an automated redaction system that you can use to
-take advantage of this. It works by attempting to redact any text in the prompt surrounded by brackets. For example, the
-prompt "\[I am really sad,\] Please feed me." will only speak the words "Please feed me" (with a sad tonality).
+Source (Patrick Bateman): 
+* https://files.catbox.moe/skzumo.zip
 
-### Playing with the voice latent
+Output (`My name is Patrick Bateman.`, `fast` preset):
+* https://files.catbox.moe/cw88t5.wav
+* https://files.catbox.moe/bwunfo.wav
+* https://files.catbox.moe/ppxprv.wav
 
-Tortoise ingests reference clips by feeding them through individually through a small submodel that produces a point latent,
-then taking the mean of all of the produced latents. The experimentation I have done has indicated that these point latents
-are quite expressive, affecting everything from tone to speaking rate to speech abnormalities.
+I trimmed up some of the samples to end up with ten short clips of about 10 seconds each. With a 2060, it took a hair over a minute to generate the initial samples, then five to ten seconds for each clip of a total of three. Not too bad for something running on consumer grade shitware.
 
-This lends itself to some neat tricks. For example, you can combine feed two different voices to tortoise and it will output
-what it thinks the "average" of those two voices sounds like.
+Source (Harry Mason):
+* https://files.catbox.moe/n2xor1.mp3
+* https://files.catbox.moe/bbfke3.mp3
 
-#### Generating conditioning latents from voices
+Output (The McDonalds building creepypasta, custom preset of 128 samples, 256 iterations):
+* https://voca.ro/16XSgdlcC5uT
 
-Use the script `get_conditioning_latents.py` to extract conditioning latents for a voice you have installed. This script
-will dump the latents to a .pth pickle file. The file will contain a single tuple, (autoregressive_latent, diffusion_latent).
+This took quite a while, over the course of a day half-paying-attention at the command prompt to generate the next piece. I only had to regenerate one section that sounded funny, but compared to 11.AI requiring tons of regenerations for something usable, this is nice to just let run and forget. Initially he sounds rather passable as Harry Mason, but as it goes on it seems to kinda falter. **!**NOTE**!**: sound effects and music are added in post and aren't generated by TorToiSe.
 
-Alternatively, use the api.TextToSpeech.get_conditioning_latents() to fetch the latents.
+## Caveats (and Upsides)
 
-#### Using raw conditioning latents to generate speech
+To me, I find a few problems:
+* a voice's "clonability" depends on the "compatability" with the model TorToiSe was initially trained on.
+	It's pretty much a gamble on what plays nicely. Patrick Bateman and Harry Mason will work nice, while James Sunderland, SA2 Shadow, and Mitsuru will refuse to get anything consistently decent. 
+* generation time takes quite a while on cards with low compute power (for example, a 2060) for substantial texts, and gets worse for voices with "low compatability" as more samples are required.
+	For me personally, if it bothered me, I could rent out a Paperspace instance again and nab the non-pay-as-you-go A100 to crank out audio clips. My 2060 is my secondary card, so it might as well get some use.
+* the content of your text could ***greatly*** affect the delivery for the entire text.
+	For example, if you lose the die roll and the wrong emotion gets deduced, then it'll throw off the entire clip and subsequent candidates.
+	For example, just having the James Sunderland voice say "Mary?" will have it generate as a female voice some of the time.
+* the lack of an obvious analog to the "stability" and "similarity" sliders kind of sucks, but it's not the end of the world.
+	However, the `temperature` option seems to prove to be a proper analog to either of these.
+* I'm not sure if this is specifically an """algorithm""" problem, or is just the nature of sampling, but the GPU is grossly underutilized for compute. I could be wrong and I actually have something misconfigured.
 
-After you've played with them, you can use them to generate speech by creating a subdirectory in voices/ with a single
-".pth" file containing the pickled conditioning latents as a tuple (autoregressive_latent, diffusion_latent).
-
-### Send me feedback!
-
-Probabilistic models like Tortoise are best thought of as an "augmented search" - in this case, through the space of possible
-utterances of a specific string of text. The impact of community involvement in perusing these spaces (such as is being done with
-GPT-3 or CLIP) has really surprised me. If you find something neat that you can do with Tortoise that isn't documented here,
-please report it to me! I would be glad to publish it to this page.
-
-## Tortoise-detect
-
-Out of concerns that this model might be misused, I've built a classifier that tells the likelihood that an audio clip
-came from Tortoise.
-
-This classifier can be run on any computer, usage is as follows:
-
-```commandline
-python tortoise/is_this_from_tortoise.py --clip=<path_to_suspicious_audio_file>
-```
-
-This model has 100% accuracy on the contents of the results/ and voices/ folders in this repo. Still, treat this classifier
-as a "strong signal". Classifiers can be fooled and it is likewise not impossible for this classifier to exhibit false
-positives.
-
-## Model architecture
-
-Tortoise TTS is inspired by OpenAI's DALLE, applied to speech data and using a better decoder. It is made up of 5 separate
-models that work together. I've assembled a write-up of the system architecture here:
-[https://nonint.com/2022/04/25/tortoise-architectural-design-doc/](https://nonint.com/2022/04/25/tortoise-architectural-design-doc/)
-
-## Training
-
-These models were trained on my "homelab" server with 8 RTX 3090s over the course of several months. They were trained on a dataset consisting of
-~50k hours of speech data, most of which was transcribed by [ocotillo](http://www.github.com/neonbjb/ocotillo). Training was done on my own
-[DLAS](https://github.com/neonbjb/DL-Art-School) trainer.
-
-I currently do not have plans to release the training configurations or methodology. See the next section..
-
-## Ethical Considerations
-
-Tortoise v2 works considerably better than I had planned. When I began hearing some of the outputs of the last few versions, I began
-wondering whether or not I had an ethically unsound project on my hands. The ways in which a voice-cloning text-to-speech system
-could be misused are many. It doesn't take much creativity to think up how.
-
-After some thought, I have decided to go forward with releasing this. Following are the reasons for this choice:
-
-1. It is primarily good at reading books and speaking poetry. Other forms of speech do not work well.
-2. It was trained on a dataset which does not have the voices of public figures. While it will attempt to mimic these voices if they are provided as references, it does not do so in such a way that most humans would be fooled.
-3. The above points could likely be resolved by scaling up the model and the dataset. For this reason, I am currently withholding details on how I trained the model, pending community feedback.
-4. I am releasing a separate classifier model which will tell you whether a given audio clip was generated by Tortoise or not. See `tortoise-detect` above.
-5. If I, a tinkerer with a BS in computer science with a ~$15k computer can build this, then any motivated corporation or state can as well. I would prefer that it be in the open and everyone know the kinds of things ML can do.
-
-### Diversity
-
-The diversity expressed by ML models is strongly tied to the datasets they were trained on.
-
-Tortoise was trained primarily on a dataset consisting of audiobooks. I made no effort to
-balance diversity in this dataset. For this reason, Tortoise will be particularly poor at generating the voices of minorities
-or of people who speak with strong accents.
-
-## Looking forward
-
-Tortoise v2 is about as good as I think I can do in the TTS world with the resources I have access to. A phenomenon that happens when
-training very large models is that as parameter count increases, the communication bandwidth needed to support distributed training
-of the model increases multiplicatively. On enterprise-grade hardware, this is not an issue: GPUs are attached together with
-exceptionally wide buses that can accommodate this bandwidth. I cannot afford enterprise hardware, though, so I am stuck.
-
-I want to mention here
-that I think Tortoise could do be a **lot** better. The three major components of Tortoise are either vanilla Transformer Encoder stacks
-or Decoder stacks. Both of these types of models have a rich experimental history with scaling in the NLP realm. I see no reason
-to believe that the same is not true of TTS.
-
-The largest model in Tortoise v2 is considerably smaller than GPT-2 large. It is 20x smaller that the original DALLE transformer.
-Imagine what a TTS model trained at or near GPT-3 or DALLE scale could achieve.
-
-If you are an ethical organization with computational resources to spare interested in seeing what this model could do
-if properly scaled out, please reach out to me! I would love to collaborate on this.
-
-## Acknowledgements
-
-This project has garnered more praise than I expected. I am standing on the shoulders of giants, though, and I want to
-credit a few of the amazing folks in the community that have helped make this happen:
-
-- Hugging Face, who wrote the GPT model and the generate API used by Tortoise, and who hosts the model weights.
-- [Ramesh et al](https://arxiv.org/pdf/2102.12092.pdf) who authored the DALLE paper, which is the inspiration behind Tortoise.
-- [Nichol and Dhariwal](https://arxiv.org/pdf/2102.09672.pdf) who authored the (revision of) the code that drives the diffusion model.
-- [Jang et al](https://arxiv.org/pdf/2106.07889.pdf) who developed and open-sourced univnet, the vocoder this repo uses.
-- [Kim and Jung](https://github.com/mindslab-ai/univnet) who implemented univnet pytorch model.
-- [lucidrains](https://github.com/lucidrains) who writes awesome open source pytorch models, many of which are used here.
-- [Patrick von Platen](https://huggingface.co/patrickvonplaten) whose guides on setting up wav2vec were invaluable to building my dataset.
-
-## Notice
-
-Tortoise was built entirely by me using my own hardware. My employer was not involved in any facet of Tortoise's development.
-
-If you use this repo or the ideas therein for your research, please cite it! A bibtex entree can be found in the right pane on GitHub.
+However, I can look past these as TorToiSe offers, in comparison to 11.AI:
+* the "speaking too fast" issue does not exist with TorToiSe. I don't need to fight with it by pretending I'm a Gaia user in the early 2000s by sprinkling ellipses.
+* the overall delivery seems very natural, sometimes small, dramatic pauses gets added at the legitimately most convenient moments, and the inhales tend to be more natural. Many of vocaroos from 11.AI where it just does not seem properly delivered.
+* being able to run it locally means I do not have to worry about some Polack seeing me use the "dick" word.

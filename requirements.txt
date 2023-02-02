@@ -11,3 +11,4 @@ librosa
 torchaudio
 threadpoolctl
 appdirs
+gradio
