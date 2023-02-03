@@ -7,14 +7,7 @@ from datetime import datetime
 from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
 
-VOICE_OPTIONS = [
-    "random",  # special option for random voice
-    "microphone",  # special option for custom voice
-    "disabled",  # special option for disabled voice
-]
-
-
-def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature):
+def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, progress=gr.Progress()):
     if voice != "microphone":
         voices = [voice]
     else:
@@ -48,6 +41,10 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
         seed = None
 
     start_time = time.time()
+
+    # >b-buh why not set samples and iterations to nullllll
+    # shut up
+
     if preset == "none":
         gen, additionals = tts.tts_with_preset(
             text,
@@ -60,6 +57,7 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
             num_autoregressive_samples=num_autoregressive_samples,
             diffusion_iterations=diffusion_iterations,
             temperature=temperature,
+            progress=progress
         )
         seed = additionals[0]
     else:
@@ -72,13 +70,13 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
             return_deterministic_state=True,
             k=candidates,
             temperature=temperature,
+            progress=progress
         )
         seed = additionals[0]
 
+    info = f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} preset / {num_autoregressive_samples} samples / {diffusion_iterations} iterations | Temperature: {temperature} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n"
     with open("results.log", "a") as f:
-        f.write(
-            f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n"
-        )
+        f.write(info)
 
     timestamp = int(time.time())
     outdir = f"./results/{voice}/{timestamp}/"
@@ -86,7 +84,7 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
     os.makedirs(outdir, exist_ok=True)
 
     with open(os.path.join(outdir, f'input.txt'), 'w') as f:
-        f.write(f"{text}\n\nSeed: {seed}")
+        f.write(f"{text}\n\n{info}")
 
     if isinstance(gen, list):
         for j, g in enumerate(gen):
@@ -129,7 +127,7 @@ def main():
     temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
 
     voice = gr.Dropdown(
-        os.listdir(os.path.join("tortoise", "voices")) + VOICE_OPTIONS,
+        os.listdir(os.path.join("tortoise", "voices")) + ["random", "microphone", "disabled"],
         label="Voice",
         type="value",
     )
