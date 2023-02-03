@@ -40,11 +40,12 @@ MODELS = {
 }
 
 def tqdm_override(arr, verbose=False, progress=None, desc=None):
+    if verbose and desc is not None:
+        print(desc)
+
     if progress is None:
-        if verbose and desc is not None:
-            print(desc)
         return tqdm(arr, disable=not verbose)
-    return progress.tqdm(arr, desc=desc)
+    return progress.tqdm(arr, desc=desc, track_tqdm=True)
 
 def download_models(specific_models=None):
     """
@@ -152,7 +153,7 @@ def fix_autoregressive_output(codes, stop_token, complain=True):
     return codes
 
 
-def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True):
+def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True, progress=None, desc=None):
     """
     Uses the specified diffusion model to convert discrete codes into a spectrogram.
     """
@@ -164,7 +165,7 @@ def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_la
         noise = torch.randn(output_shape, device=latents.device) * temperature
         mel = diffuser.p_sample_loop(diffusion_model, output_shape, noise=noise,
                                       model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
-                                     progress=verbose)
+                                     verbose=verbose, progress=progress, desc=desc)
         return denormalize_tacotron_mel(mel)[:,:,:output_seq_len]
 
 
@@ -471,7 +472,7 @@ class TextToSpeech:
             del auto_conditioning
 
             wav_candidates = []
-            for b in tqdm_override(range(best_results.shape[0]), verbose=verbose, progress=progress, desc="Transforming autoregressive outputs into audio.."):
+            for b in range(best_results.shape[0]):
                 codes = best_results[b].unsqueeze(0)
                 latents = best_latents[b].unsqueeze(0)
 
@@ -487,7 +488,7 @@ class TextToSpeech:
                         break
 
                 mel = do_spectrogram_diffusion(self.diffusion, diffuser, latents, diffusion_conditioning,
-                                               temperature=diffusion_temperature, verbose=verbose)
+                                               temperature=diffusion_temperature, verbose=verbose, progress=progress, desc="Transforming autoregressive outputs into audio..")
                 wav = self.vocoder.inference(mel)
                 wav_candidates.append(wav.cpu())
 

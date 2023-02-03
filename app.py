@@ -121,9 +121,9 @@ def main():
         label="Preset",
         type="value",
     )
-    candidates = gr.Number(value=1, precision=0, label="Candidates")
-    num_autoregressive_samples = gr.Number(value=128, precision=0, label="Samples")
-    diffusion_iterations = gr.Number(value=128, precision=0, label="Iterations")
+    candidates = gr.Slider(value=1, minimum=1, maximum=6, label="Candidates")
+    num_autoregressive_samples = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Samples")
+    diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations")
     temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
 
     voice = gr.Dropdown(
