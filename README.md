@@ -69,7 +69,7 @@ Now you're ready to generate clips. With the `conda` prompt still open, simply r
 If you're looking to access your copy of TorToiSe from outside your local network, pass `--share` into the command (for example, `python app.py --share`). You'll get a temporary gradio link to use.
 
 You'll be presented with a bunch of options, but do not be overwhelmed, as most of the defaults are sane, but below are a rough explanation on which input does what:
-* `Text`: text you want to be read
+* `Text`: text you want to be read. You wrap text in `[brackets]` for "prompt engineering", where it'll affect the output, but those words won't actually be read.
 * `Emotion`: the "emotion" used for the delivery. This is a shortcut to starting with `[I am really ${emotion}],` in your text box. I assume the emotion is deduced during the CLVP pass.
 * `Voice`: the voice you want to clone. You can select `custom` if you want to use input from your microphone.
 * `Record voice`: Not required, unless you use `custom`.
@@ -80,37 +80,11 @@ You'll be presented with a bunch of options, but do not be overwhelmed, as most 
 * `Diffusion iterations`: influences audio sound quality in the final output. More iterations = higher quality sound. This step is relatively cheap, so do not be discouraged from increasing this.
 * `Temperature`: how much randomness to introduce to the generated samples. Lower values = better resemblance to the source samples, but some temperature is still required for great output. This value definitely requires playing around depending on the voice you use.
 
-After you fill everything out, click `Submit`, and wait for your outpu in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
+After you fill everything out, click `Submit`, and wait for your output in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
 
+All outputs are saved under `./result/[voice name]/[timestamp]/` as `result.wav`, with the text used saved alongside it. There doesn't seem to be an inherent way to add a Download button in Gradio, so keep that folder in mind.
 
-
-### Command Line Use (legacy)
-
-Ignore this if you're using the web UI, as I'm leaving this in for power users who insist on using the command line. Information below may be a bit outdated.
-
-With the `conda` command prompt still open, simply paste (without the `[]`:
-
-`python tortoise/do_tts.py --text "[text you want]" --voice [voice folder name]`
-
-and wait for the magic. If you have a beefy enough GPU, or a short enough prompt, you should have your output relatively quick.
-
-If nothing funny is printed to the console window, your outputs will show up in the `results` folder under the `tortoise-tts` workspace.
-
-If you want something super quick to test, add `--preset ultra_fast` for a cost in quality. If your samples seem good enough, or the default preset (`fast`) is not quite right, you can add `--preset standard` to get higher quality outputs at a cost of time.
-
-By default, a batch of three clips will be outputted, as it's easier to grab clips from the generate samples, than it is to generate the samples itself. If you want more (or less) clips generated at once, add `--candidates [number]` to the command. It's a pretty good idea to bump this up and pick from the best, rather than re-run the script multiple times. However, it appears the quality drops the more it generates.
-
-With the `--voice [name]` flag, you can combine voices to be "mixed" together by passing `--voice [name1]&[name2]`. I believe there's an upward limit of 3. I have not yet experimented with this, but only noticed this from reading the `do_tts.py` script.
-
-With the `--voice [name]` flag, you can have it iterate through a list of voices to read your text with one command by passing `--voice [name1],[name2]`. I do not believe there's a limit, but I'm not sure why you would need to have multiple voices recite the same text.
-
-If you want a little variety (*sort of* similar to the stability slider), you can use the `--cvvp_amount` flag. From my quick experiments, a value of `0.1` will noticeably vary the voice, so use this value with caution. Additionally, it seems to increase the `Computing best candidates` pass immensely.
-
-Similar to image generation, you can utilize prompt editing to change emotion. In the documentation, you can use something like `[I am really sad,]` before the part where you want an (attempted) sad delivery. **!**NOTE**!**: Prompt engineering seems to not work, as it just outputs eldritch noises.
-
-**!**NOTE**!**: If you see a `WavFileWarning: Chunk (non-data) not understood, skipping it.` error, one of your source files is malformed. It's recommended to re-encode your sound files to make sure it works. For me, running it back in ~~Audacity~~ Tenacity doesn't seem to fix it, but remuxing it with `ffmpeg -i [source].wav -ar 22050 [fixed].wav` seemed to fix it. Outputs where any file gets this error seems to give whacky behavior, from pretty random voices to guttural noises.
-
-There seems to be a huge suite of additional flags to mess around with if you're using the `api.py` script, and seems to be relatively easy to adjust by adding more flags in the `do_tts.py` script, but most of them seem to be fine-tuned and not worth adjusting.
+To save you from headaches, I strongly recommend playing around with shorter sentences first to find the right values for the voice you're using before generating longer sentences.
 
 ## Example(s)
 
@@ -145,6 +119,7 @@ To me, I find a few problems:
 * the content of your text could ***greatly*** affect the delivery for the entire text.
 	For example, if you lose the die roll and the wrong emotion gets deduced, then it'll throw off the entire clip and subsequent candidates.
 	For example, just having the James Sunderland voice say "Mary?" will have it generate as a female voice some of the time.
+	This appears to be predicated on how "prompt engineering" works with changing emotions, so it's understandable.
 * the lack of an obvious analog to the "stability" and "similarity" sliders kind of sucks, but it's not the end of the world.
 	However, the `temperature` option seems to prove to be a proper analog to either of these.
 * I'm not sure if this is specifically an """algorithm""" problem, or is just the nature of sampling, but the GPU is grossly underutilized for compute. I could be wrong and I actually have something misconfigured.
