@@ -97,20 +97,34 @@ def get_voices(extra_voice_dirs=[]):
     return voices
 
 
-def load_voice(voice, extra_voice_dirs=[]):
+def load_voice(voice, extra_voice_dirs=[], load_latents=True):
     if voice == 'random':
         return None, None
 
     voices = get_voices(extra_voice_dirs)
     paths = voices[voice]
-    if len(paths) == 1 and paths[0].endswith('.pth'):
-        return None, torch.load(paths[0])
-    else:
-        conds = []
-        for cond_path in paths:
-            c = load_audio(cond_path, 22050)
-            conds.append(c)
-        return conds, None
+
+    mtime = 0
+    voices = []
+    latent = None
+    for file in paths:
+        if file[-4:] == ".pth":
+            latent = file
+        else:
+            voices.append(file)
+            mtime = max(mtime, os.path.getmtime(file))
+
+    if load_latents and latent is not None:
+        if os.path.getmtime(latent) > mtime:
+            print(f"Reading from latent: {latent}")
+            return None, torch.load(latent)
+        print(f"Latent file out of date: {latent}")
+    
+    conds = []
+    for cond_path in voices:
+        c = load_audio(cond_path, 22050)
+        conds.append(c)
+    return conds, None
 
 
 def load_voices(voices, extra_voice_dirs=[]):

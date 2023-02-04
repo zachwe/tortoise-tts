@@ -26,21 +26,25 @@ Lots of available RAM seems to be a requirement, as I see Python eating up 8GiB 
 
 ### Pre-Requirements
 
-Anaconda: https://www.anaconda.com/products/distribution
+Python 3.9: https://www.python.org/downloads/release/python-3913/
 
 Git (optional): https://git-scm.com/download/win
 
 ### Setup
 
-Download Anaconda and run the installer.
+Download Python and run the installer.
 
-After installing `conda`, open the Start Menu and search for `Anaconda Powershell Prompt`. Type `cd `, then drag and drop the folder you want to work in (experienced users can just `cd <path>` directly).
+After installing python, open the Start Menu and search for `Command Prompt`. Type `cd `, then drag and drop the folder you want to work in (experienced users can just `cd <path>` directly).
 
 Paste `git clone https://git.ecker.tech/mrq/tortoise-tts` to download TorToiSe and additional scripts. Inexperienced users can just download the repo as a ZIP, and extract.
 
 Then move into that folder with `cd tortoise-tts`. Afterwards, enter `setup.bat` to automatically enter all the remaining commands.
 
-If you've done everything right with installing Anaconda, you shouldn't have any errors.
+If you've done everything right, you shouldn't have any errors.
+
+### Updating
+
+To check for updates with the Web UI, simply enter `git pull` in the command prompt, while the TorToiSe workspace is the current working directory.
 
 ## Preparing Voice Samples
 
@@ -64,7 +68,7 @@ After preparing your clips as WAV files at a sample rate of 22050 Hz, open up th
 
 ## Using the Software
 
-Now you're ready to generate clips. With the `conda` prompt still open, simply run the web UI with `python app.py`, and wait for it to print out a URL to open in your browser, something like `http://127.0.0.1:7861`.
+Now you're ready to generate clips. With the command prompt still open, simply enter `start.bat`, and wait for it to print out a URL to open in your browser, something like `http://127.0.0.1:7861`.
 
 If you're looking to access your copy of TorToiSe from outside your local network, pass `--share` into the command (for example, `python app.py --share`). You'll get a temporary gradio link to use.
 
@@ -72,7 +76,7 @@ You'll be presented with a bunch of options, but do not be overwhelmed, as most 
 * `Text`: text you want to be read. You wrap text in `[brackets]` for "prompt engineering", where it'll affect the output, but those words won't actually be read.
 * `Emotion`: the "emotion" used for the delivery. This is a shortcut to starting with `[I am really ${emotion}],` in your text box. I assume the emotion is deduced during the CLVP pass.
 * `Voice`: the voice you want to clone. You can select `custom` if you want to use input from your microphone.
-* `Record voice`: Not required, unless you use `custom`.
+* `Microphone Source`: Not required, unless you use `custom`.
 * `Preset`: shortcut values for sample count and iteration steps. Use `none` if you want to provide your own values. Better presets rresult in better quality at the cost of computation time.
 * `Seed`: initializes the PRNG initially to this value, use this if you want to reproduce a generated voice. Currently, I don't have a way to expose the seed used.
 * `Candidates`: number of outputs to generate, starting from the best candidate. Depending on your iteration steps, generating the final sound files could be cheap, but they only offer alternatives to the samples generated to pull from (in other words, the later candidates perform worse), so don't be compelled to generate a ton of candidates.
@@ -85,6 +89,8 @@ After you fill everything out, click `Submit`, and wait for your output in the o
 All outputs are saved under `./result/[voice name]/[timestamp]/` as `result.wav`, with the text used saved alongside it. There doesn't seem to be an inherent way to add a Download button in Gradio, so keep that folder in mind.
 
 To save you from headaches, I strongly recommend playing around with shorter sentences first to find the right values for the voice you're using before generating longer sentences.
+
+As a quick optimization, I modified the script to where the `conditional_latents` are saved after loading voice samples. If there's voice samples that have a modification time newer than this cached file, it'll skip loading it and load the normal WAVs instead.
 
 ## Example(s)
 

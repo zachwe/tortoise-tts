@@ -1,8 +1,10 @@
 import os
 import argparse
 import gradio as gr
+import torch
 import torchaudio
 import time
+
 from datetime import datetime
 from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
@@ -18,61 +20,49 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
     elif emotion != "None":
         text = f"[I am really {emotion.lower()},] {text}"
 
-    c = None
     if voice == "microphone":
         if mic_audio is None:
             raise gr.Error("Please provide audio from mic when choosing `microphone` as a voice input")
-        c = load_audio(mic_audio, 22050)
-
-
-    if len(voices) == 1 or len(voices) == 0:
-        if voice == "microphone":
-            voice_samples, conditioning_latents = [c], None
-        else:
-            voice_samples, conditioning_latents = load_voice(voice)
+        mic = load_audio(mic_audio, 22050)
+        voice_samples, conditioning_latents = [mic], None
     else:
-        voice_samples, conditioning_latents = load_voices(voices)
-        if voice == "microphone":
-            voice_samples.extend([c])
-
-    sample_voice = voice_samples[0] if len(voice_samples) else None
+        voice_samples, conditioning_latents = load_voice(voice)
+    
+    if voice_samples is not None:
+        sample_voice = voice_samples[0]
+        conditioning_latents = tts.get_conditioning_latents(voice_samples)
+        torch.save(conditioning_latents, os.path.join(f'./tortoise/voices/{voice}/', f'latents.pth'))
+        voice_samples = None
+    else:
+        sample_voice = None
 
     if seed == 0:
         seed = None
 
     start_time = time.time()
 
-    # >b-buh why not set samples and iterations to nullllll
-    # shut up
+    presets = {
+        'ultra_fast': {'num_autoregressive_samples': 16, 'diffusion_iterations': 30, 'cond_free': False},
+        'fast': {'num_autoregressive_samples': 96, 'diffusion_iterations': 80},
+        'standard': {'num_autoregressive_samples': 256, 'diffusion_iterations': 200},
+        'high_quality': {'num_autoregressive_samples': 256, 'diffusion_iterations': 400},
+        'none': {'num_autoregressive_samples': num_autoregressive_samples, 'diffusion_iterations': diffusion_iterations},
+    }
+    settings = {
+        'temperature': temperature, 'length_penalty': 1.0, 'repetition_penalty': 2.0,
+        'top_p': .8,
+        'cond_free_k': 2.0, 'diffusion_temperature': 1.0,
 
-    if preset == "none":
-        gen, additionals = tts.tts_with_preset(
-            text,
-            voice_samples=voice_samples,
-            conditioning_latents=conditioning_latents,
-            preset="standard",
-            use_deterministic_seed=seed,
-            return_deterministic_state=True,
-            k=candidates,
-            num_autoregressive_samples=num_autoregressive_samples,
-            diffusion_iterations=diffusion_iterations,
-            temperature=temperature,
-            progress=progress
-        )
-        seed = additionals[0]
-    else:
-        gen, additionals = tts.tts_with_preset(
-            text,
-            voice_samples=voice_samples,
-            conditioning_latents=conditioning_latents,
-            preset=preset,
-            use_deterministic_seed=seed,
-            return_deterministic_state=True,
-            k=candidates,
-            temperature=temperature,
-            progress=progress
-        )
-        seed = additionals[0]
+        'voice_samples': voice_samples,
+        'conditioning_latents': conditioning_latents,
+        'use_deterministic_seed': seed,
+        'return_deterministic_state': True,
+        'k': candidates,
+        'progress': progress,
+    }
+    settings.update(presets[preset])
+    gen, additionals = tts.tts( text, **settings )
+    seed = additionals[0]
 
     info = f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} preset / {num_autoregressive_samples} samples / {diffusion_iterations} iterations | Temperature: {temperature} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n"
     with open("results.log", "a") as f:
@@ -89,24 +79,24 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
     if isinstance(gen, list):
         for j, g in enumerate(gen):
             torchaudio.save(os.path.join(outdir, f'result_{j}.wav'), g.squeeze(0).cpu(), 24000)
-        return (
-            (22050, sample_voice.squeeze().cpu().numpy()),
-            (24000, gen[0].squeeze().cpu().numpy()),
-            seed
-        )
+        
+        output_voice = gen[0]
     else:
         torchaudio.save(os.path.join(outdir, f'result.wav'), gen.squeeze(0).cpu(), 24000)
-        return (
-            (22050, sample_voice.squeeze().cpu().numpy()),
-            (24000, gen.squeeze().cpu().numpy()),
-            seed
-        )
+        output_voice = gen
+
+    output_voice = (24000, output_voice.squeeze().cpu().numpy())
+
+    if sample_voice is not None:
+        sample_voice = (22050, sample_voice.squeeze().cpu().numpy())
+
+    return (
+        sample_voice,
+        output_voice,
+        seed
+    )
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--share", action='store_true', help="Lets Gradio return a public URL to use anywhere")
-    args = parser.parse_args()
-
     text = gr.Textbox(lines=4, label="Prompt")
     emotion = gr.Radio(
         ["None", "Happy", "Sad", "Angry", "Disgusted", "Arrogant", "Custom"],
@@ -158,11 +148,17 @@ def main():
             temperature
         ],
         outputs=[selected_voice, output_audio, usedSeed],
-        allow_flagging=False
+        allow_flagging='never'
     )
     interface.queue().launch(share=args.share)
 
 
 if __name__ == "__main__":
-    tts = TextToSpeech()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--share", action='store_true', help="Lets Gradio return a public URL to use anywhere")
+    parser.add_argument("--low-vram", action='store_true', help="Disables some optimizations that increases VRAM usage")
+    args = parser.parse_args()
+
+    tts = TextToSpeech(minor_optimizations=not args.low_vram)
+
     main()

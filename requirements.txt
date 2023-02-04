@@ -11,4 +11,6 @@ librosa
 torchaudio
 threadpoolctl
 appdirs
+numpy
+numba
 gradio
