@@ -8,6 +8,10 @@ Similar to my own findings for Stable Diffusion image generation, this rentry ma
 
 I link those a bit later on as alternatives for Windows+AMD users. You're free to skip the installation section and jump after that.
 
+>\> Wheres the love for Linux abloobloo
+
+I'm extremely lazy and can't be assed to install Arch Linux again, much less create shell script equivalents. The commands should be almost 1:1 with what's in the batch file, save for the line to activate the venv.
+
 >\>Ugh... why bother when I can just abuse 11.AI?
 
 I very much encourage (You) to use 11.AI while it's still viable to use. For the layman, it's easier to go through the hoops of coughing up the $5 or abusing the free trial over actually setting up a TorToiSe environment and dealing with its quirks.
@@ -46,6 +50,14 @@ If you've done everything right, you shouldn't have any errors.
 
 To check for updates with the Web UI, simply enter `git pull` in the command prompt, while the TorToiSe workspace is the current working directory.
 
+### Pitfalls You May Encounter
+
+I'll try and make a list of "common" (or what I feel may be common that I experience) issues with getting TorToiSe set up:
+
+* `failed reading zip archive: failed finding central directory`: You had a file fail to download completely during the model downloading initialization phase. Please open either `%USERPROFILE%\.cache\tortoise\models\` or `%USERPROFILE%\.cache\huggingface\models\`, and delete the offending file.
+	You can deduce what that file is by reading the stack trace. A few lines above the last like will be a line trying to read a model path.
+* `torch.cuda.OutOfMemoryError: CUDA out of memory.`: You most likely have a GPU with low VRAM (~4GiB), and the small optimizations with keeping data on the GPU is enough to OOM. Please open the `start.bat` file and add `--low-vram` to the command (for example: `py app.py --low-vram`) to disable those small optimizations.
+
 ## Preparing Voice Samples
 
 Now that the tough part is dealt with, it's time to prepare voice sample clips to use.
@@ -73,24 +85,26 @@ Now you're ready to generate clips. With the command prompt still open, simply e
 If you're looking to access your copy of TorToiSe from outside your local network, pass `--share` into the command (for example, `python app.py --share`). You'll get a temporary gradio link to use.
 
 You'll be presented with a bunch of options, but do not be overwhelmed, as most of the defaults are sane, but below are a rough explanation on which input does what:
-* `Text`: text you want to be read. You wrap text in `[brackets]` for "prompt engineering", where it'll affect the output, but those words won't actually be read.
-* `Emotion`: the "emotion" used for the delivery. This is a shortcut to starting with `[I am really ${emotion}],` in your text box. I assume the emotion is deduced during the CLVP pass.
-* `Voice`: the voice you want to clone. You can select `custom` if you want to use input from your microphone.
-* `Microphone Source`: Not required, unless you use `custom`.
-* `Preset`: shortcut values for sample count and iteration steps. Use `none` if you want to provide your own values. Better presets rresult in better quality at the cost of computation time.
-* `Seed`: initializes the PRNG initially to this value, use this if you want to reproduce a generated voice. Currently, I don't have a way to expose the seed used.
+* `Prompt`: text you want to be read. You wrap text in `[brackets]` for "prompt engineering", where it'll affect the output, but those words won't actually be read.
+* `Emotion`: the "emotion" used for the delivery. This is a shortcut to utilizing "prompt engineering" by starting with `[I am really <emotion>,]` in your prompt. This is not a guarantee, however.
+* `Custom Emotion + Prompt`: a non-preset "emotion" used for the delivery. This is a shortcut to utilizing "prompt engineering" by starting with `[<emotion>]` in your prompt.
+* `Voice`: the voice you want to clone. You can select `microphone` if you want to use input from your microphone.
+* `Microphone Source`: Use your own voice from a line-in source.
 * `Candidates`: number of outputs to generate, starting from the best candidate. Depending on your iteration steps, generating the final sound files could be cheap, but they only offer alternatives to the samples generated to pull from (in other words, the later candidates perform worse), so don't be compelled to generate a ton of candidates.
-* `Autoregressive samples`: analogous to samples in image generation. More samples = better resemblance / clone quality, at the cost of performance.
-* `Diffusion iterations`: influences audio sound quality in the final output. More iterations = higher quality sound. This step is relatively cheap, so do not be discouraged from increasing this.
-* `Temperature`: how much randomness to introduce to the generated samples. Lower values = better resemblance to the source samples, but some temperature is still required for great output. This value definitely requires playing around depending on the voice you use.
+* `Seed`: initializes the PRNG to this value. Use this if you want to reproduce a generated voice.
+* `Preset`: shortcut values for sample count and iteration steps. Clicking a preset will update its corresponding values. Higher presets result in better quality at the cost of computation time.
+* `Samples`: analogous to samples in image generation. More samples = better resemblance / clone quality, at the cost of performance. This strictly affects clone quality.
+* `Iterations`: influences audio sound quality in the final output. More iterations = higher quality sound. This step is relatively cheap, so do not be discouraged from increasing this. This strictly affects quality in the actual sound.
+* `Temperature`: how much randomness to introduce to the generated samples. Lower values = better resemblance to the source samples, but some temperature is still required for great output. This value is very inconsistent and entirely depends on the input voice.
+* `Diffusion Sampler`: sampler method during the diffusion pass. Currently, only `P` and `DDIM` are added, but does not seem to offer any substantial differences in my short tests.
 
-After you fill everything out, click `Submit`, and wait for your output in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
+After you fill everything out, click `Run`, and wait for your output in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
 
-All outputs are saved under `./result/[voice name]/[timestamp]/` as `result.wav`, with the text used saved alongside it. There doesn't seem to be an inherent way to add a Download button in Gradio, so keep that folder in mind.
+All outputs are saved under `./result/[voice name]/[timestamp]/` as `result.wav`, and the settings in `input.txt`. There doesn't seem to be an inherent way to add a Download button in Gradio, so keep that folder in mind.
 
 To save you from headaches, I strongly recommend playing around with shorter sentences first to find the right values for the voice you're using before generating longer sentences.
 
-As a quick optimization, I modified the script to where the `conditional_latents` are saved after loading voice samples. If there's voice samples that have a modification time newer than this cached file, it'll skip loading it and load the normal WAVs instead.
+As a quick optimization, I modified the script to where the `conditional_latents` are saved after loading voice samples, and subsequent uses will load that file directly (at the cost of not returning the `Sample voice` to the web UI). If there's voice samples that have a modification time newer than this cached file, it'll skip loading it and load the normal WAVs instead.
 
 ## Example(s)
 

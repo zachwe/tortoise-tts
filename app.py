@@ -9,7 +9,7 @@ from datetime import datetime
 from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
 
-def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, progress=gr.Progress()):
+def generate(text, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, progress=gr.Progress()):
     if voice != "microphone":
         voices = [voice]
     else:
@@ -41,13 +41,6 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
 
     start_time = time.time()
 
-    presets = {
-        'Ultra Fast': {'num_autoregressive_samples': 16, 'diffusion_iterations': 30, 'cond_free': False},
-        'Fast': {'num_autoregressive_samples': 96, 'diffusion_iterations': 80},
-        'Standard': {'num_autoregressive_samples': 256, 'diffusion_iterations': 200},
-        'High Quality': {'num_autoregressive_samples': 256, 'diffusion_iterations': 400},
-        'None': {'num_autoregressive_samples': num_autoregressive_samples, 'diffusion_iterations': diffusion_iterations},
-    }
     settings = {
         'temperature': temperature, 'length_penalty': 1.0, 'repetition_penalty': 2.0,
         'top_p': .8,
@@ -61,7 +54,7 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
         'diffusion_sampler': diffusion_sampler,
         'progress': progress,
     }
-    settings.update(presets[preset])
+
     gen, additionals = tts.tts( text, **settings )
     seed = additionals[0]
 
@@ -97,68 +90,103 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
         seed
     )
 
+def update_presets(value):
+    PRESETS = {
+        'Ultra Fast': {'num_autoregressive_samples': 16, 'diffusion_iterations': 30, 'cond_free': False},
+        'Fast': {'num_autoregressive_samples': 96, 'diffusion_iterations': 80},
+        'Standard': {'num_autoregressive_samples': 256, 'diffusion_iterations': 200},
+        'High Quality': {'num_autoregressive_samples': 256, 'diffusion_iterations': 400},
+    }
+    
+    if value in PRESETS:
+        preset = PRESETS[value]
+        return (gr.update(value=preset['num_autoregressive_samples']), gr.update(value=preset['diffusion_iterations']))
+    else:
+        return (gr.update(), gr.update())
+
 def main():
-    text = gr.Textbox(lines=4, label="Prompt")
-    emotion = gr.Radio(
-        ["None", "Happy", "Sad", "Angry", "Disgusted", "Arrogant", "Custom"],
-        value="None",
-        label="Emotion",
-        type="value",
-    )
-    prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
-    preset = gr.Radio(
-        ["Ultra Fast", "Fast", "Standard", "High Quality", "None"],
-        value="None",
-        label="Preset",
-        type="value",
-    )
-    candidates = gr.Slider(value=1, minimum=1, maximum=6, label="Candidates")
-    num_autoregressive_samples = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Samples")
-    diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations")
-    temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
-    diffusion_sampler = gr.Radio(
-        ["P", "DDIM"],
-        value="P",
-        label="Diffusion Samplers",
-        type="value",
-    )
+    with gr.Blocks() as demo:
+        with gr.Row():
+            with gr.Column():
+                text = gr.Textbox(lines=4, label="Prompt")
 
-    voice = gr.Dropdown(
-        os.listdir(os.path.join("tortoise", "voices")) + ["random", "microphone", "disabled"],
-        label="Voice",
-        type="value",
-    )
-    mic_audio = gr.Audio(
-        label="Microphone Source",
-        source="microphone",
-        type="filepath",
-    )
-    seed = gr.Number(value=0, precision=0, label="Seed")
+                emotion = gr.Radio(
+                    ["None", "Happy", "Sad", "Angry", "Disgusted", "Arrogant", "Custom"],
+                    value="None",
+                    label="Emotion",
+                    type="value",
+                    interactive=True
+                )
+                prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
+                voice = gr.Dropdown(
+                    os.listdir(os.path.join("tortoise", "voices")) + ["microphone"],
+                    label="Voice",
+                    type="value",
+                )
+                mic_audio = gr.Audio(
+                    label="Microphone Source",
+                    source="microphone",
+                    type="filepath",
+                )
+                
+                candidates = gr.Slider(value=1, minimum=1, maximum=6, label="Candidates")
+                seed = gr.Number(value=0, precision=0, label="Seed")
 
-    selected_voice = gr.Audio(label="Source Sample")
-    output_audio = gr.Audio(label="Output")
-    usedSeed = gr.Textbox(label="Seed", placeholder="0", interactive=False) 
+                preset = gr.Radio(
+                    ["Ultra Fast", "Fast", "Standard", "High Quality", "None"],
+                    value="None",
+                    label="Preset",
+                    type="value",
+                )
+                num_autoregressive_samples = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Samples", interactive=True)
+                diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations", interactive=True)
 
-    interface = gr.Interface(
-        fn=inference,
-        inputs=[
-            text,
-            emotion,
-            prompt,
-            voice,
-            mic_audio,
-            preset,
-            seed,
-            candidates,
-            num_autoregressive_samples,
-            diffusion_iterations,
-            temperature,
-            diffusion_sampler
-        ],
-        outputs=[selected_voice, output_audio, usedSeed],
-        allow_flagging='never'
-    )
-    interface.queue().launch(share=args.share)
+                temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
+                diffusion_sampler = gr.Radio(
+                    ["P", "DDIM"],
+                    value="P",
+                    label="Diffusion Samplers",
+                    type="value",
+                )
+
+                prompt.change(fn=lambda value: gr.update(value="Custom"),
+                    inputs=prompt,
+                    outputs=emotion
+                )
+
+                preset.change(fn=update_presets,
+                    inputs=preset,
+                    outputs=[
+                        num_autoregressive_samples,
+                        diffusion_iterations,
+                    ],
+                )
+            with gr.Column():
+                selected_voice = gr.Audio(label="Source Sample")
+                output_audio = gr.Audio(label="Output")
+                usedSeed = gr.Textbox(label="Seed", placeholder="0", interactive=False) 
+                
+                submit = gr.Button(label="Generate")
+                
+                submit.click(generate,
+                    inputs=[
+                        text,
+                        emotion,
+                        prompt,
+                        voice,
+                        mic_audio,
+                        preset,
+                        seed,
+                        candidates,
+                        num_autoregressive_samples,
+                        diffusion_iterations,
+                        temperature,
+                        diffusion_sampler
+                    ],
+                    outputs=[selected_voice, output_audio, usedSeed],
+                )
+
+    demo.queue().launch(share=args.share)
 
 
 if __name__ == "__main__":
