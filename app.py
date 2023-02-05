@@ -129,7 +129,7 @@ def main():
                     type="filepath",
                 )
                 
-                candidates = gr.Slider(value=1, minimum=1, maximum=6, label="Candidates")
+                candidates = gr.Slider(value=1, minimum=1, maximum=6, step=1, label="Candidates")
                 seed = gr.Number(value=0, precision=0, label="Seed")
 
                 preset = gr.Radio(
@@ -152,6 +152,10 @@ def main():
                 prompt.change(fn=lambda value: gr.update(value="Custom"),
                     inputs=prompt,
                     outputs=emotion
+                )
+                mic_audio.change(fn=lambda value: gr.update(value="microphone"),
+                    inputs=mic_audio,
+                    outputs=voice
                 )
 
                 preset.change(fn=update_presets,
