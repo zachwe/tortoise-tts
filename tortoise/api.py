@@ -170,7 +170,7 @@ def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_la
         noise = torch.randn(output_shape, device=latents.device) * temperature
         
         diffuser.sampler = sampler.lower()
-        mel = diffuser.ddim_sample_loop(diffusion_model, output_shape, noise=noise,
+        mel = diffuser.sample_loop(diffusion_model, output_shape, noise=noise,
                                       model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
                                      verbose=verbose, progress=progress, desc=desc)
 
