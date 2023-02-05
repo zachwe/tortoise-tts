@@ -11,8 +11,6 @@ from tortoise.utils.audio import load_audio, load_voice, load_voices
 from tortoise.utils.text import split_and_recombine_text
 
 def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, experimentals, progress=gr.Progress()):
-    print(experimentals)
-
     if voice != "microphone":
         voices = [voice]
     else:
@@ -30,7 +28,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
     if voice_samples is not None:
         sample_voice = voice_samples[0]
         conditioning_latents = tts.get_conditioning_latents(voice_samples, progress=progress)
-        torch.save(conditioning_latents, os.path.join(f'./tortoise/voices/{voice}/', f'latents.pth'))
+        torch.save(conditioning_latents, os.path.join(f'./tortoise/voices/{voice}/', f'cond_latents.pth'))
         voice_samples = None
     else:
         sample_voice = None
@@ -214,13 +212,13 @@ def main():
                 temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
                 breathing_room = gr.Slider(value=12, minimum=1, maximum=32, step=1, label="Pause Size")
                 diffusion_sampler = gr.Radio(
-                    ["P", "DDIM"],
+                    ["P", "DDIM"], # + ["K_Euler_A", "DPM++2M"],
                     value="P",
                     label="Diffusion Samplers",
                     type="value",
                 )
 
-                experimentals = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=[False, True], label="Experimental Flags")
+                experimentals = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=["Conditioning-Free"], label="Experimental Flags")
 
                 preset.change(fn=update_presets,
                     inputs=preset,

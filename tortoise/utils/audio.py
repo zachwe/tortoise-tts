@@ -108,7 +108,7 @@ def load_voice(voice, extra_voice_dirs=[], load_latents=True):
     voices = []
     latent = None
     for file in paths:
-        if file == "cond_latents.pth":
+        if file[-16:] == "cond_latents.pth":
             latent = file
         elif file[-4:] == ".pth":
             {}
