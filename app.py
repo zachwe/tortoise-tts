@@ -16,11 +16,6 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
     else:
         voices = []
 
-    if emotion == "Custom" and prompt.strip() != "":
-        text = f"[{prompt},] {text}"
-    elif emotion != "None":
-        text = f"[I am really {emotion.lower()},] {text}"
-
     if voice == "microphone":
         if mic_audio is None:
             raise gr.Error("Please provide audio from mic when choosing `microphone` as a voice input")
@@ -76,6 +71,11 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
 
     audio_cache = {}
     for line, cut_text in enumerate(texts):
+        if emotion == "Custom" and prompt.strip() != "":
+            cut_text = f"[{prompt},] {cut_text}"
+        elif emotion != "None":
+            cut_text = f"[I am really {emotion.lower()},] {cut_text}"
+
         print(f"[{str(line+1)}/{str(len(texts))}] Generating line: {cut_text}")
 
         gen, additionals = tts.tts(cut_text, **settings )
