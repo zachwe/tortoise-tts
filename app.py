@@ -9,7 +9,7 @@ from datetime import datetime
 from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
 
-def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, progress=gr.Progress()):
+def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, progress=gr.Progress()):
     if voice != "microphone":
         voices = [voice]
     else:
@@ -42,11 +42,11 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
     start_time = time.time()
 
     presets = {
-        'ultra_fast': {'num_autoregressive_samples': 16, 'diffusion_iterations': 30, 'cond_free': False},
-        'fast': {'num_autoregressive_samples': 96, 'diffusion_iterations': 80},
-        'standard': {'num_autoregressive_samples': 256, 'diffusion_iterations': 200},
-        'high_quality': {'num_autoregressive_samples': 256, 'diffusion_iterations': 400},
-        'none': {'num_autoregressive_samples': num_autoregressive_samples, 'diffusion_iterations': diffusion_iterations},
+        'Ultra Fast': {'num_autoregressive_samples': 16, 'diffusion_iterations': 30, 'cond_free': False},
+        'Fast': {'num_autoregressive_samples': 96, 'diffusion_iterations': 80},
+        'Standard': {'num_autoregressive_samples': 256, 'diffusion_iterations': 200},
+        'High Quality': {'num_autoregressive_samples': 256, 'diffusion_iterations': 400},
+        'None': {'num_autoregressive_samples': num_autoregressive_samples, 'diffusion_iterations': diffusion_iterations},
     }
     settings = {
         'temperature': temperature, 'length_penalty': 1.0, 'repetition_penalty': 2.0,
@@ -58,13 +58,14 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
         'use_deterministic_seed': seed,
         'return_deterministic_state': True,
         'k': candidates,
+        'diffusion_sampler': diffusion_sampler,
         'progress': progress,
     }
     settings.update(presets[preset])
     gen, additionals = tts.tts( text, **settings )
     seed = additionals[0]
 
-    info = f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} preset / {num_autoregressive_samples} samples / {diffusion_iterations} iterations | Temperature: {temperature} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n"
+    info = f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} preset / {num_autoregressive_samples} samples / {diffusion_iterations} iterations | Temperature: {temperature} | Diffusion Sampler: {diffusion_sampler} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n"
     with open("results.log", "a") as f:
         f.write(info)
 
@@ -74,7 +75,7 @@ def inference(text, emotion, prompt, voice, mic_audio, preset, seed, candidates,
     os.makedirs(outdir, exist_ok=True)
 
     with open(os.path.join(outdir, f'input.txt'), 'w') as f:
-        f.write(f"{text}\n\n{info}")
+        f.write(f"{info}")
 
     if isinstance(gen, list):
         for j, g in enumerate(gen):
@@ -104,10 +105,10 @@ def main():
         label="Emotion",
         type="value",
     )
-    prompt = gr.Textbox(lines=1, label="Custom Emotion (if selected)")
+    prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
     preset = gr.Radio(
-        ["ultra_fast", "fast", "standard", "high_quality", "none"],
-        value="none",
+        ["Ultra Fast", "Fast", "Standard", "High Quality", "None"],
+        value="None",
         label="Preset",
         type="value",
     )
@@ -115,6 +116,12 @@ def main():
     num_autoregressive_samples = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Samples")
     diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations")
     temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
+    diffusion_sampler = gr.Radio(
+        ["P", "DDIM"],
+        value="P",
+        label="Diffusion Samplers",
+        type="value",
+    )
 
     voice = gr.Dropdown(
         os.listdir(os.path.join("tortoise", "voices")) + ["random", "microphone", "disabled"],
@@ -145,7 +152,8 @@ def main():
             candidates,
             num_autoregressive_samples,
             diffusion_iterations,
-            temperature
+            temperature,
+            diffusion_sampler
         ],
         outputs=[selected_voice, output_audio, usedSeed],
         allow_flagging='never'

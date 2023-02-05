@@ -153,7 +153,7 @@ def fix_autoregressive_output(codes, stop_token, complain=True):
     return codes
 
 
-def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True, progress=None, desc=None):
+def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True, progress=None, desc=None, sampler="P"):
     """
     Uses the specified diffusion model to convert discrete codes into a spectrogram.
     """
@@ -163,9 +163,18 @@ def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_la
         precomputed_embeddings = diffusion_model.timestep_independent(latents, conditioning_latents, output_seq_len, False)
 
         noise = torch.randn(output_shape, device=latents.device) * temperature
-        mel = diffuser.p_sample_loop(diffusion_model, output_shape, noise=noise,
+        
+        mel = None
+        print(f"Sampler: {sampler}")
+        if sampler == "P":
+            mel = diffuser.p_sample_loop(diffusion_model, output_shape, noise=noise,
                                       model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
                                      verbose=verbose, progress=progress, desc=desc)
+        elif sampler == "DDIM":
+            mel = diffuser.ddim_sample_loop(diffusion_model, output_shape, noise=noise,
+                                      model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
+                                     verbose=verbose, progress=progress, desc=desc)
+
         return denormalize_tacotron_mel(mel)[:,:,:output_seq_len]
 
 
@@ -361,6 +370,7 @@ class TextToSpeech:
             cvvp_amount=.0,
             # diffusion generation parameters follow
             diffusion_iterations=100, cond_free=True, cond_free_k=2, diffusion_temperature=1.0,
+            diffusion_sampler="P",
             progress=None,
             **hf_generate_kwargs):
         """
@@ -531,7 +541,7 @@ class TextToSpeech:
                         break
 
                 mel = do_spectrogram_diffusion(self.diffusion, diffuser, latents, diffusion_conditioning,
-                                               temperature=diffusion_temperature, verbose=verbose, progress=progress, desc="Transforming autoregressive outputs into audio..")
+                                               temperature=diffusion_temperature, verbose=verbose, progress=progress, desc="Transforming autoregressive outputs into audio..", sampler=diffusion_sampler)
                 wav = self.vocoder.inference(mel)
                 wav_candidates.append(wav.cpu())
             

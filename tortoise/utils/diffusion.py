@@ -734,6 +734,7 @@ class GaussianDiffusion:
         verbose=False,
         eta=0.0,
         progress=None,
+        desc=None,
     ):
         """
         Generate samples from the model using DDIM.
@@ -753,6 +754,7 @@ class GaussianDiffusion:
             verbose=verbose,
             eta=eta,
             progress=progress,
+            desc=desc
         ):
             final = sample
         return final["sample"]
@@ -770,6 +772,7 @@ class GaussianDiffusion:
         verbose=False,
         eta=0.0,
         progress=None,
+        desc=None,
     ):
         """
         Use DDIM to sample from the model and yield intermediate samples from
@@ -790,7 +793,7 @@ class GaussianDiffusion:
             # Lazy import so that we don't depend on tqdm.
             from tqdm.auto import tqdm
 
-            indices = tqdm_override(indices, verbose=verbose, desc="DDIM Sample Loop Progressive", progress=progress)
+            indices = tqdm_override(indices, verbose=verbose, desc=desc, progress=progress)
 
         for i in indices:
             t = th.tensor([i] * shape[0], device=device)
