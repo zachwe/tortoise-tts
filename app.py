@@ -46,6 +46,9 @@ def generate(text, emotion, prompt, voice, mic_audio, preset, seed, candidates, 
         'top_p': .8,
         'cond_free_k': 2.0, 'diffusion_temperature': 1.0,
 
+        'num_autoregressive_samples': num_autoregressive_samples,
+        'diffusion_iterations': diffusion_iterations,
+
         'voice_samples': voice_samples,
         'conditioning_latents': conditioning_latents,
         'use_deterministic_seed': seed,
@@ -58,8 +61,8 @@ def generate(text, emotion, prompt, voice, mic_audio, preset, seed, candidates, 
     gen, additionals = tts.tts( text, **settings )
     seed = additionals[0]
 
-    info = f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} preset / {num_autoregressive_samples} samples / {diffusion_iterations} iterations | Temperature: {temperature} | Diffusion Sampler: {diffusion_sampler} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n"
-    with open("results.log", "a") as f:
+    info = f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} preset / {num_autoregressive_samples} samples / {diffusion_iterations} iterations | Temperature: {temperature} | Diffusion Sampler: {diffusion_sampler} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n".encode('utf8')
+    with open("results.log", "w") as f:
         f.write(info)
 
     timestamp = int(time.time())
@@ -170,9 +173,10 @@ def main():
                 output_audio = gr.Audio(label="Output")
                 usedSeed = gr.Textbox(label="Seed", placeholder="0", interactive=False) 
                 
-                submit = gr.Button(label="Generate")
+                submit = gr.Button(value="Generate")
+                #stop = gr.Button(value="Stop")
                 
-                submit.click(generate,
+                submit_event = submit.click(generate,
                     inputs=[
                         text,
                         emotion,
@@ -189,6 +193,8 @@ def main():
                     ],
                     outputs=[selected_voice, output_audio, usedSeed],
                 )
+
+                #stop.click(fn=None, inputs=None, outputs=None, cancels=[submit_event])
 
     demo.queue().launch(share=args.share)
 
