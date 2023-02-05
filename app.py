@@ -22,6 +22,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
         mic = load_audio(mic_audio, 22050)
         voice_samples, conditioning_latents = [mic], None
     else:
+        progress(0, desc="Loading voice...")
         voice_samples, conditioning_latents = load_voice(voice)
     
     if voice_samples is not None:
@@ -151,6 +152,9 @@ def update_presets(value):
     else:
         return (gr.update(), gr.update())
 
+def update_voices():
+    return gr.Dropdown.update(choices=os.listdir(os.path.join("tortoise", "voices")) + ["microphone"])
+
 def main():
     with gr.Blocks() as demo:
         with gr.Row():
@@ -175,6 +179,11 @@ def main():
                     label="Microphone Source",
                     source="microphone",
                     type="filepath",
+                )
+                refresh_voices = gr.Button(value="Refresh Voice List")
+                refresh_voices.click(update_voices,
+                    inputs=None,
+                    outputs=voice
                 )
                 
                 prompt.change(fn=lambda value: gr.update(value="Custom"),

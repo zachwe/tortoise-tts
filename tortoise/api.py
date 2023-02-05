@@ -169,13 +169,8 @@ def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_la
 
         noise = torch.randn(output_shape, device=latents.device) * temperature
         
-        mel = None
-        if sampler == "P":
-            mel = diffuser.p_sample_loop(diffusion_model, output_shape, noise=noise,
-                                      model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
-                                     verbose=verbose, progress=progress, desc=desc)
-        elif sampler == "DDIM":
-            mel = diffuser.ddim_sample_loop(diffusion_model, output_shape, noise=noise,
+        diffuser.sampler = sampler.lower()
+        mel = diffuser.ddim_sample_loop(diffusion_model, output_shape, noise=noise,
                                       model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
                                      verbose=verbose, progress=progress, desc=desc)
 
@@ -251,6 +246,7 @@ class TextToSpeech:
                                           heads=16, number_text_tokens=255, start_text_token=255, checkpointing=False,
                                           train_solo_embeddings=False).cpu().eval()
             self.autoregressive.load_state_dict(torch.load(get_model_path('autoregressive.pth', models_dir)))
+            self.autoregressive.post_init_gpt2_config(kv_cache=minor_optimizations)
 
             self.diffusion = DiffusionTts(model_channels=1024, num_layers=10, in_channels=100, out_channels=200,
                                           in_latent_channels=1024, in_tokens=8193, dropout=0, use_fp16=False, num_heads=16,

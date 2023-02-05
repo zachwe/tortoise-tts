@@ -537,6 +537,14 @@ class GaussianDiffusion:
         sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
 
+    def sample_loop(self, *args, **kwargs):
+        s = self.sampler.lower()
+        if s == 'p':
+            return self.p_sample_loop(*args, **kwargs)
+        if s == 'ddim':
+            return self.ddim_sample_loop(*args, **kwargs)
+        else: raise RuntimeError("sampler not implemented")
+
     def p_sample_loop(
         self,
         model,
