@@ -10,7 +10,7 @@ from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
 from tortoise.utils.text import split_and_recombine_text
 
-def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, progress=gr.Progress()):
+def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, progress=gr.Progress()):
     if voice != "microphone":
         voices = [voice]
     else:
@@ -51,6 +51,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
         'return_deterministic_state': True,
         'k': candidates,
         'diffusion_sampler': diffusion_sampler,
+        'breathing_room': breathing_room,
         'progress': progress,
     }
 
@@ -176,6 +177,15 @@ def main():
                     type="filepath",
                 )
                 
+                prompt.change(fn=lambda value: gr.update(value="Custom"),
+                    inputs=prompt,
+                    outputs=emotion
+                )
+                mic_audio.change(fn=lambda value: gr.update(value="microphone"),
+                    inputs=mic_audio,
+                    outputs=voice
+                )
+            with gr.Column():
                 candidates = gr.Slider(value=1, minimum=1, maximum=6, step=1, label="Candidates")
                 seed = gr.Number(value=0, precision=0, label="Seed")
 
@@ -185,24 +195,16 @@ def main():
                     label="Preset",
                     type="value",
                 )
-                num_autoregressive_samples = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Samples", interactive=True)
-                diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations", interactive=True)
+                num_autoregressive_samples = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Samples")
+                diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations")
 
                 temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
+                breathing_room = gr.Slider(value=12, minimum=1, maximum=32, step=1, label="Pause Size")
                 diffusion_sampler = gr.Radio(
                     ["P", "DDIM"],
                     value="P",
                     label="Diffusion Samplers",
                     type="value",
-                )
-
-                prompt.change(fn=lambda value: gr.update(value="Custom"),
-                    inputs=prompt,
-                    outputs=emotion
-                )
-                mic_audio.change(fn=lambda value: gr.update(value="microphone"),
-                    inputs=mic_audio,
-                    outputs=voice
                 )
 
                 preset.change(fn=update_presets,
@@ -234,7 +236,8 @@ def main():
                         num_autoregressive_samples,
                         diffusion_iterations,
                         temperature,
-                        diffusion_sampler
+                        diffusion_sampler,
+                        breathing_room
                     ],
                     outputs=[selected_voice, output_audio, usedSeed],
                 )

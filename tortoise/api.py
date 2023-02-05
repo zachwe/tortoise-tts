@@ -375,6 +375,7 @@ class TextToSpeech:
             # diffusion generation parameters follow
             diffusion_iterations=100, cond_free=True, cond_free_k=2, diffusion_temperature=1.0,
             diffusion_sampler="P",
+            breathing_room=8,
             progress=None,
             **hf_generate_kwargs):
         """
@@ -540,7 +541,7 @@ class TextToSpeech:
                         ctokens += 1
                     else:
                         ctokens = 0
-                    if ctokens > 8:  # 8 tokens gives the diffusion model some "breathing room" to terminate speech.
+                    if ctokens > breathing_room:  # 8 tokens gives the diffusion model some "breathing room" to terminate speech.
                         latents = latents[:, :k]
                         break
 
