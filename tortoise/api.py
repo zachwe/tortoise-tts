@@ -4,6 +4,12 @@ import uuid
 from time import time
 from urllib import request
 
+if 'TORTOISE_MODELS_DIR' not in os.environ:
+    os.environ['TORTOISE_MODELS_DIR'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../models/tortoise/')
+    
+if 'TRANSFORMERS_CACHE' not in os.environ:
+    os.environ['TRANSFORMERS_CACHE'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../models/transformers/')
+
 import torch
 import torch.nn.functional as F
 import progressbar
@@ -26,8 +32,7 @@ from tortoise.utils.wav2vec_alignment import Wav2VecAlignment
 
 pbar = None
 
-DEFAULT_MODELS_DIR = os.path.join(os.path.expanduser('~'), '.cache', 'tortoise', 'models')
-MODELS_DIR = os.environ.get('TORTOISE_MODELS_DIR', DEFAULT_MODELS_DIR)
+MODELS_DIR = os.environ.get('TORTOISE_MODELS_DIR')
 MODELS = {
     'autoregressive.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/autoregressive.pth',
     'classifier.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/classifier.pth',
