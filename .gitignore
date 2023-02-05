@@ -1,3 +1,7 @@
+# ignores user files
+/tortoise/voices/
+/models/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
