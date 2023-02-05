@@ -115,6 +115,8 @@ To save you from headaches, I strongly recommend playing around with shorter sen
 
 As a quick optimization, I modified the script to where the `conditional_latents` are saved after loading voice samples, and subsequent uses will load that file directly (at the cost of not returning the `Sample voice` to the web UI). If there's voice samples that have a modification time newer than this cached file, it'll skip loading it and load the normal WAVs instead.
 
+**!**NOTE**!**: cached `latents.pth` files generated before 2023.02.05 will be ignored, due to a change in computing the conditiona latents. This *should* help bump up voice cloning quality. Apologies for the inconvenience.
+
 ## Example(s)
 
 Below are some outputs I deem substantial enough to share. As I continue delving into TorToiSe, I'll supply more examples and the values I use.

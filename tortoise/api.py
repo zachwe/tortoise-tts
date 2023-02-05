@@ -284,7 +284,7 @@ class TextToSpeech:
         if self.minor_optimizations:
             self.cvvp = self.cvvp.to(self.device)
 
-    def get_conditioning_latents(self, voice_samples, return_mels=False):
+    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, enforced_length=102400):
         """
         Transforms one or more voice_samples into a tuple (autoregressive_conditioning_latent, diffusion_conditioning_latent).
         These are expressive learned latents that encode aspects of the provided clips like voice, intonation, and acoustic
@@ -303,14 +303,18 @@ class TextToSpeech:
             auto_conds = torch.stack(auto_conds, dim=1)
             
             diffusion_conds = []
-            for sample in voice_samples:
+
+            for sample in tqdm_override(voice_samples, verbose=verbose, progress=progress, desc="Computing conditioning latents..."):
                 # The diffuser operates at a sample rate of 24000 (except for the latent inputs)
                 sample = torchaudio.functional.resample(sample, 22050, 24000)
-                sample = pad_or_truncate(sample, 102400)
-                cond_mel = wav_to_univnet_mel(sample.to(self.device), do_normalization=False, device=self.device)
-                diffusion_conds.append(cond_mel)
-            diffusion_conds = torch.stack(diffusion_conds, dim=1)
+                chunks = torch.chunk(sample, int(sample.shape[-1] / enforced_length) + 1, dim=1)
+                
+                for chunk in chunks:
+                    chunk = pad_or_truncate(chunk, enforced_length)
+                    cond_mel = wav_to_univnet_mel(chunk.to(self.device), do_normalization=False, device=self.device)
+                    diffusion_conds.append(cond_mel)
 
+            diffusion_conds = torch.stack(diffusion_conds, dim=1)
 
             if self.minor_optimizations:
                 auto_latent = self.autoregressive.get_conditioning(auto_conds)
@@ -372,6 +376,7 @@ class TextToSpeech:
             diffusion_iterations=100, cond_free=True, cond_free_k=2, diffusion_temperature=1.0,
             diffusion_sampler="P",
             breathing_room=8,
+            half_p=False,
             progress=None,
             **hf_generate_kwargs):
         """
@@ -446,55 +451,57 @@ class TextToSpeech:
             if not self.minor_optimizations:
                 self.autoregressive = self.autoregressive.to(self.device)
             
-            for b in tqdm_override(range(num_batches), verbose=verbose, progress=progress, desc="Generating autoregressive samples"):
-                codes = self.autoregressive.inference_speech(auto_conditioning, text_tokens,
-                                                             do_sample=True,
-                                                             top_p=top_p,
-                                                             temperature=temperature,
-                                                             num_return_sequences=self.autoregressive_batch_size,
-                                                             length_penalty=length_penalty,
-                                                             repetition_penalty=repetition_penalty,
-                                                             max_generate_length=max_mel_tokens,
-                                                             **hf_generate_kwargs)
-                padding_needed = max_mel_tokens - codes.shape[1]
-                codes = F.pad(codes, (0, padding_needed), value=stop_mel_token)
-                samples.append(codes)
+            with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=half_p):
+                for b in tqdm_override(range(num_batches), verbose=verbose, progress=progress, desc="Generating autoregressive samples"):
+                    codes = self.autoregressive.inference_speech(auto_conditioning, text_tokens,
+                                                                 do_sample=True,
+                                                                 top_p=top_p,
+                                                                 temperature=temperature,
+                                                                 num_return_sequences=self.autoregressive_batch_size,
+                                                                 length_penalty=length_penalty,
+                                                                 repetition_penalty=repetition_penalty,
+                                                                 max_generate_length=max_mel_tokens,
+                                                                 **hf_generate_kwargs)
+                    padding_needed = max_mel_tokens - codes.shape[1]
+                    codes = F.pad(codes, (0, padding_needed), value=stop_mel_token)
+                    samples.append(codes)
 
             clip_results = []
 
-            if not self.minor_optimizations:
-                self.autoregressive = self.autoregressive.cpu()
-                self.clvp = self.clvp.to(self.device)
-
-            if cvvp_amount > 0:
-                if self.cvvp is None:
-                    self.load_cvvp()
+            with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=half_p):
                 if not self.minor_optimizations:
-                    self.cvvp = self.cvvp.to(self.device)
-            
-            desc="Computing best candidates"
-            if verbose:
-                if self.cvvp is None:
-                    desc = "Computing best candidates using CLVP"
-                else:
-                    desc = f"Computing best candidates using CLVP {((1-cvvp_amount) * 100):2.0f}% and CVVP {(cvvp_amount * 100):2.0f}%"
+                    self.autoregressive = self.autoregressive.cpu()
+                    self.clvp = self.clvp.to(self.device)
 
-            for batch in tqdm_override(samples, verbose=verbose, progress=progress, desc=desc):
-                for i in range(batch.shape[0]):
-                    batch[i] = fix_autoregressive_output(batch[i], stop_mel_token)
-                if cvvp_amount != 1:
-                    clvp = self.clvp(text_tokens.repeat(batch.shape[0], 1), batch, return_loss=False)
-                if auto_conds is not None and cvvp_amount > 0:
-                    cvvp_accumulator = 0
-                    for cl in range(auto_conds.shape[1]):
-                        cvvp_accumulator = cvvp_accumulator + self.cvvp(auto_conds[:, cl].repeat(batch.shape[0], 1, 1), batch, return_loss=False)
-                    cvvp = cvvp_accumulator / auto_conds.shape[1]
-                    if cvvp_amount == 1:
-                        clip_results.append(cvvp)
+                if cvvp_amount > 0:
+                    if self.cvvp is None:
+                        self.load_cvvp()
+                    if not self.minor_optimizations:
+                        self.cvvp = self.cvvp.to(self.device)
+                
+                desc="Computing best candidates"
+                if verbose:
+                    if self.cvvp is None:
+                        desc = "Computing best candidates using CLVP"
                     else:
-                        clip_results.append(cvvp * cvvp_amount + clvp * (1-cvvp_amount))
-                else:
-                    clip_results.append(clvp)
+                        desc = f"Computing best candidates using CLVP {((1-cvvp_amount) * 100):2.0f}% and CVVP {(cvvp_amount * 100):2.0f}%"
+
+                for batch in tqdm_override(samples, verbose=verbose, progress=progress, desc=desc):
+                    for i in range(batch.shape[0]):
+                        batch[i] = fix_autoregressive_output(batch[i], stop_mel_token)
+                    if cvvp_amount != 1:
+                        clvp = self.clvp(text_tokens.repeat(batch.shape[0], 1), batch, return_loss=False)
+                    if auto_conds is not None and cvvp_amount > 0:
+                        cvvp_accumulator = 0
+                        for cl in range(auto_conds.shape[1]):
+                            cvvp_accumulator = cvvp_accumulator + self.cvvp(auto_conds[:, cl].repeat(batch.shape[0], 1, 1), batch, return_loss=False)
+                        cvvp = cvvp_accumulator / auto_conds.shape[1]
+                        if cvvp_amount == 1:
+                            clip_results.append(cvvp)
+                        else:
+                            clip_results.append(cvvp * cvvp_amount + clvp * (1-cvvp_amount))
+                    else:
+                        clip_results.append(clvp)
             clip_results = torch.cat(clip_results, dim=0)
             samples = torch.cat(samples, dim=0)
             best_results = samples[torch.topk(clip_results, k=k).indices]

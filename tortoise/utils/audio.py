@@ -108,8 +108,11 @@ def load_voice(voice, extra_voice_dirs=[], load_latents=True):
     voices = []
     latent = None
     for file in paths:
-        if file[-4:] == ".pth":
+        if file == "cond_latents.pth":
             latent = file
+        elif file[-4:] == ".pth":
+            {}
+            # noop
         else:
             voices.append(file)
             mtime = max(mtime, os.path.getmtime(file))

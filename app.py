@@ -10,7 +10,9 @@ from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
 from tortoise.utils.text import split_and_recombine_text
 
-def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, progress=gr.Progress()):
+def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, experimentals, progress=gr.Progress()):
+    print(experimentals)
+
     if voice != "microphone":
         voices = [voice]
     else:
@@ -27,7 +29,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
     
     if voice_samples is not None:
         sample_voice = voice_samples[0]
-        conditioning_latents = tts.get_conditioning_latents(voice_samples)
+        conditioning_latents = tts.get_conditioning_latents(voice_samples, progress=progress)
         torch.save(conditioning_latents, os.path.join(f'./tortoise/voices/{voice}/', f'latents.pth'))
         voice_samples = None
     else:
@@ -54,6 +56,8 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
         'diffusion_sampler': diffusion_sampler,
         'breathing_room': breathing_room,
         'progress': progress,
+        'half_p': "Half Precision" in experimentals,
+        'cond_free': "Conditioning-Free" in experimentals,
     }
 
     if delimiter == "\\n":
@@ -216,6 +220,8 @@ def main():
                     type="value",
                 )
 
+                experimentals = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=[False, True], label="Experimental Flags")
+
                 preset.change(fn=update_presets,
                     inputs=preset,
                     outputs=[
@@ -246,7 +252,8 @@ def main():
                         diffusion_iterations,
                         temperature,
                         diffusion_sampler,
-                        breathing_room
+                        breathing_room,
+                        experimentals,
                     ],
                     outputs=[selected_voice, output_audio, usedSeed],
                 )
