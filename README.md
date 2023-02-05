@@ -86,6 +86,8 @@ If you're looking to access your copy of TorToiSe from outside your local networ
 
 You'll be presented with a bunch of options, but do not be overwhelmed, as most of the defaults are sane, but below are a rough explanation on which input does what:
 * `Prompt`: text you want to be read. You wrap text in `[brackets]` for "prompt engineering", where it'll affect the output, but those words won't actually be read.
+* `Line Delimiter`: String to split the prompt into pieces. The stitched clip will be stored as `combined.wav`
+	- Setting this to `\n` will generate each line as one clip before stitching it.
 * `Emotion`: the "emotion" used for the delivery. This is a shortcut to utilizing "prompt engineering" by starting with `[I am really <emotion>,]` in your prompt. This is not a guarantee, however.
 * `Custom Emotion + Prompt`: a non-preset "emotion" used for the delivery. This is a shortcut to utilizing "prompt engineering" by starting with `[<emotion>]` in your prompt.
 * `Voice`: the voice you want to clone. You can select `microphone` if you want to use input from your microphone.

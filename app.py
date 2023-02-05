@@ -73,9 +73,8 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
  
     os.makedirs(outdir, exist_ok=True)
  
-    # to-do: store audio to array to avoid having to re-read from disk when combining
-    # to-do: do not rejoin when not splitting lines
- 
+
+    audio_cache = {}
     for line, cut_text in enumerate(texts):
         print(f"[{str(line+1)}/{str(len(texts))}] Generating line: {cut_text}")
 
@@ -84,22 +83,37 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
  
         if isinstance(gen, list):
             for j, g in enumerate(gen):
-                os.makedirs(os.path.join(outdir, f'candidate_{j}'), exist_ok=True)
-                torchaudio.save(os.path.join(outdir, f'candidate_{j}/result_{line}.wav'), g.squeeze(0).cpu(), 24000)
-        else:
-            torchaudio.save(os.path.join(outdir, f'result_{line}.wav'), gen.squeeze(0).cpu(), 24000)
- 
-    for candidate in range(candidates):
-        audio_clips = []
-        for line in range(len(texts)):
-            if isinstance(gen, list):
-                wav_file = os.path.join(outdir, f'candidate_{candidate}/result_{line}.wav')
-            else:
-                wav_file = os.path.join(outdir, f'result_{line}.wav')
+                audio = g.squeeze(0).cpu()
+                audio_cache[f"candidate_{j}/result_{line}.wav"] = audio
 
-            audio_clips.append(load_audio(wav_file, 24000))
-        audio_clips = torch.cat(audio_clips, dim=-1)
-        torchaudio.save(os.path.join(outdir, f'combined_{candidate}.wav'), audio_clips, 24000)
+                os.makedirs(os.path.join(outdir, f'candidate_{j}'), exist_ok=True)
+                torchaudio.save(os.path.join(outdir, f'candidate_{j}/result_{line}.wav'), audio, 24000)
+        else:
+            audio = gen.squeeze(0).cpu()
+            audio_cache[f"result_{line}.wav"] = audio
+            torchaudio.save(os.path.join(outdir, f'result_{line}.wav'), audio, 24000)
+ 
+    output_voice = None
+    if len(texts) > 1:
+        for candidate in range(candidates):
+            audio_clips = []
+            for line in range(len(texts)):
+                if isinstance(gen, list):
+                    piece = audio_cache[f'candidate_{candidate}/result_{line}.wav']
+                else:
+                    piece = audio_cache[f'result_{line}.wav']
+                audio_clips.append(piece)
+            audio_clips = torch.cat(audio_clips, dim=-1)
+            torchaudio.save(os.path.join(outdir, f'combined_{candidate}.wav'), audio_clips, 24000)
+            
+            if output_voice is None:
+                output_voice = (24000, audio_clips.squeeze().cpu().numpy())
+    else:
+        if isinstance(gen, list):
+            output_voice = gen[0]
+        else:
+            output_voice = gen
+        output_voice = (24000, output_voice.squeeze().cpu().numpy())
  
     info = f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} preset / {num_autoregressive_samples} samples / {diffusion_iterations} iterations | Temperature: {temperature} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n"
     
@@ -111,7 +125,6 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
 
     print(f"Saved to '{outdir}'")
     
-    output_voice = (24000, audio_clips.squeeze().cpu().numpy())
  
     if sample_voice is not None:
         sample_voice = (22050, sample_voice.squeeze().cpu().numpy())
@@ -142,7 +155,7 @@ def main():
         with gr.Row():
             with gr.Column():
                 text = gr.Textbox(lines=4, label="Prompt")
-                delimiter = gr.Textbox(lines=1, label="Multi-Line Delimiter", placeholder="\\n")
+                delimiter = gr.Textbox(lines=1, label="Line Delimiter", placeholder="\\n")
 
                 emotion = gr.Radio(
                     ["None", "Happy", "Sad", "Angry", "Disgusted", "Arrogant", "Custom"],
