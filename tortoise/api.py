@@ -6,7 +6,7 @@ from urllib import request
 
 if 'TORTOISE_MODELS_DIR' not in os.environ:
     os.environ['TORTOISE_MODELS_DIR'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../models/tortoise/')
-    
+
 if 'TRANSFORMERS_CACHE' not in os.environ:
     os.environ['TRANSFORMERS_CACHE'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../models/transformers/')
 
@@ -170,7 +170,6 @@ def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_la
         noise = torch.randn(output_shape, device=latents.device) * temperature
         
         mel = None
-        print(f"Sampler: {sampler}")
         if sampler == "P":
             mel = diffuser.p_sample_loop(diffusion_model, output_shape, noise=noise,
                                       model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
