@@ -20,9 +20,22 @@ I very much encourage (You) to use 11.AI while it's still viable to use. For the
 
 However, I also encourage your own experimentation with TorToiSe, as it's very, very promising, it just takes a little love and elbow grease.
 
+## Modifications
+
+My fork boasts the following additions, fixes, and optimizations:
+* a competent web UI made in Gradio to expose a lot of tunables and options
+* cleaned up output structure of resulting audio files
+* caching computed conditional latents for faster re-runs
+	- additionally, regenerating them if the script detects they're out of date
+* uses the entire audio sample instead of the first four seconds of each sound file for better reproducing
+* activated unused DDIM sampler
+* ease of setup for the most inexperienced Windows users
+* use of some optimizations like `kv_cache`ing for the autoregression sample pass, and keeping data on GPU 
+* and more!
+
 ## Installing
 
-Below is a very retard-proof guide for getting the software set up. In the future, I'll include a batch script to use for those that don't need tight handholding.
+Outside of the very small prerequisites, everything needed to get TorToiSe working is included in the repo.
 
 For setting up on Linux, the general framework should be the same, but left as an exercise to the reader.
 
@@ -36,11 +49,11 @@ Git (optional): https://git-scm.com/download/win
 
 ### Setup
 
-Download Python and run the installer.
+Download Python and Git and run their installers.
 
-After installing python, open the Start Menu and search for `Command Prompt`. Type `cd `, then drag and drop the folder you want to work in (experienced users can just `cd <path>` directly).
+After installing Python, open the Start Menu and search for `Command Prompt`. Type `cd `, then drag and drop the folder you want to work in (experienced users can just `cd <path>` directly), then hit Enter.
 
-Paste `git clone https://git.ecker.tech/mrq/tortoise-tts` to download TorToiSe and additional scripts. Inexperienced users can just download the repo as a ZIP, and extract.
+Paste `git clone https://git.ecker.tech/mrq/tortoise-tts` to download TorToiSe and additional scripts, then hit Enter. Inexperienced users can just download the repo as a ZIP, and extract.
 
 Afterwards, run `setup.bat` to automatically set things up.
 
@@ -57,28 +70,24 @@ I'll try and make a list of "common" (or what I feel may be common that I experi
 * `failed reading zip archive: failed finding central directory`: You had a file fail to download completely during the model downloading initialization phase. Please open either `.\models\tortoise\` or `.\models\transformers\`, and delete the offending file.
 	You can deduce what that file is by reading the stack trace. A few lines above the last like will be a line trying to read a model path.
 * `torch.cuda.OutOfMemoryError: CUDA out of memory.`: You most likely have a GPU with low VRAM (~4GiB), and the small optimizations with keeping data on the GPU is enough to OOM. Please open the `start.bat` file and add `--low-vram` to the command (for example: `py app.py --low-vram`) to disable those small optimizations.
+* `WavFileWarning: Chunk (non-data) not understood, skipping it.`: something about your WAVs are funny, and its best to remux your audio files with FFMPEG (included batch file in `.\convert\`).
+	Honestly, I don't know if this does impact output quality, as I feel it's placebo when I do try and correct this.
 
 ## Preparing Voice Samples
 
 Now that the tough part is dealt with, it's time to prepare voice clips to use.
 
-Unlike training embeddings for AI image generations, preparing a "dataset" for voice cloning is very simple. While the repo suggests using short clips of about ten seconds each, you aren't required to manually snip them up. I'm not sure which way is "better", as some voices work perfectly fine with two clips with minutes each worth of audio, while other voices work better with ten short clips.
+Unlike training embeddings for AI image generations, preparing a "dataset" for voice cloning is very simple.
 
-As a general rule of thumb, try to source clips that aren't noisy, and are entirely just the subject you are trying to clone. If you must, run your source through a background music/noise remover (how to is an exercise left to the reader). It isn't entirely a detriment if you're unable to provide clean audio, however. Just be wary that you might have some headaches with getting acceptable output.
+As a general rule of thumb, try to source clips that aren't noisy, solely the subject you are trying to clone, and doesn't contain any non-words (like yells, guttural noises, etc.). If you must, run your source through a background music/noise remover (how to is an exercise left to the reader). It isn't entirely a detriment if you're unable to provide clean audio, however. Just be wary that you might have some headaches with getting acceptable output.
 
-After sourcing some clips, here are some considerations whether you should narrow down the pool you used, or not:
-* if you're aiming for a specific delivery (for example, having a line re-read but with word(s) replaced), use just that clip with the line. If you want to err on the side of caution, you can add one more similar clip for safety.
-* if your source clips are all delivered in a similar manner (for example, the Patrick Bateman example provided later), it's not necessary to cull.
-* if you're hoping to generate something non-specific, you're free to just use your entire pool.
+Nine times out of ten, you should be fine using as many clips as possible. There's (now) no preference between combining your audio into one file, or leaving it split. However, if you're aiming for a specific delivery, it *should* be best for you to narrow down to just using that as your provided source (for example, changing one word in a line).
 
 There's no hard specifics on how many, or how long, your sources should be.
 
-After sourcing your clips, there are some considerations on how to narrow down your voice clips, if needed:
-* if you're aiming for a specific delivery (for example, having a line re-read but with word(s) replaced), use just that clip with line isolated.
-* if you're aiming to generate a wide range of lines, you shouldn't have to worry about culling for similar clips, and you can just dump them all in for use.
-	To me, there's no noticeable difference between combining them into one file, or keeping them all separated (outside of the initial load for a ton of files).
+If you're looking to trim your clips, in my opinion, ~~Audacity~~ Tenacity works good enough, as you can easily output your clips into the proper format (22050 Hz sampling rate).
 
-If you're looking to trim your clips, in my opinion, ~~Audacity~~ Tenacity works good enough, as you can easily output your clips into the proper format (22050 Hz sampling rate), but some of the time, the software will print out some (sometimes harmless, sometimes harmful) warning message (`WavFileWarning: Chunk (non-data) not understood, skipping it.`), it's safe to assume you need to properly remux it with `ffmpeg`, simply with `ffmpeg -i [input] -ar 22050 -c:a pcm_f32le [output].wav`. Power users can use the previous command instead of relying on Tenacity to remux.
+Power users with FFMPEG already installed can simply used the provided conversion script in `.\convert\`.
 
 After preparing your clips as WAV files at a sample rate of 22050 Hz, open up the `tortoise-tts` folder you're working in, navigate to `./tortoise/voice/`, create a new folder in whatever name you want, then dump your clips into that folder. While you're in the `voice` folder, you can take a look at the other provided voices.
 
@@ -107,7 +116,7 @@ You'll be presented with a bunch of options, but do not be overwhelmed, as most 
 	`P` refers to the default, vanilla sampling method in `diffusion.py`.
 	To reiterate, this ***only*** is useful for the diffusion decoding path, after the autoregressive outputs are generated.
 Below are an explanation of experimental flags. Messing with these might impact performance, as these are exposed only if you know what you are doing.
-* `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower in most cases.
+* `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower.
 * `Conditional Free`: a quality boosting improvement at the cost of some performance. Enabled by default, as I think the penaly is negligible in the end.
 
 After you fill everything out, click `Run`, and wait for your output in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
@@ -116,13 +125,13 @@ All outputs are saved under `./result/[voice name]/[timestamp]/` as `result.wav`
 
 To save you from headaches, I strongly recommend playing around with shorter sentences first to find the right values for the voice you're using before generating longer sentences.
 
-As a quick optimization, I modified the script to where the `conditional_latents` are saved after loading voice samples, and subsequent uses will load that file directly (at the cost of not returning the `Sample voice` to the web UI). If there's voice samples that have a modification time newer than this cached file, it'll skip loading it and load the normal WAVs instead.
+As a quick optimization, I modified the script to have the `conditional_latents` are saved after loading voice samples, and subsequent uses will load that file directly (at the cost of not returning the `Sample voice` to the web UI). Additionally, these `conditional_latents` are also computed in a way to use the entire clip, rather than the first four seconds the original tortoise-tts uses. If there's voice samples that have a modification time newer than this cached file, it'll skip loading it and load the normal WAVs instead.
 
 **!**NOTE**!**: cached `latents.pth` files generated before 2023.02.05 will be ignored, due to a change in computing the conditiona latents. This *should* help bump up voice cloning quality. Apologies for the inconvenience.
 
 ## Example(s)
 
-Below are some outputs I deem substantial enough to share. As I continue delving into TorToiSe, I'll supply more examples and the values I use.
+Below are some (rather outdated) outputs I deem substantial enough to share. As I continue delving into TorToiSe, I'll supply more examples and the values I use.
 
 Source (Patrick Bateman): 
 * https://files.catbox.moe/skzumo.zip
@@ -145,19 +154,14 @@ This took quite a while, over the course of a day half-paying-attention at the c
 
 ## Caveats (and Upsides)
 
-To me, I find a few problems:
-* a voice's "clonability" depends on the "compatability" with the model TorToiSe was initially trained on.
-	It's pretty much a gamble on what plays nicely. Patrick Bateman and Harry Mason will work nice, while James Sunderland, SA2 Shadow, and Mitsuru will refuse to get anything consistently decent. 
-* generation time takes quite a while on cards with low compute power (for example, a 2060) for substantial texts, and gets worse for voices with "low compatability" as more samples are required.
-	For me personally, if it bothered me, I could rent out a Paperspace instance again and nab the non-pay-as-you-go A100 to crank out audio clips. My 2060 is my secondary card, so it might as well get some use.
-	There are performance gains to be reaped, however, so this may dwindle away.
-* the content of your text could ***greatly*** affect the delivery for the entire text.
-	For example, if you lose the die roll and the wrong emotion gets deduced, then it'll throw off the entire clip and subsequent candidates.
-	For example, just having the James Sunderland voice say "Mary?" will have it generate as a female voice some of the time.
-	This appears to be predicated on how "prompt engineering" works with changing emotions, so it's understandable.
+To me, I find a few problems with TorToiSe over 11.AI:
+* computation time is quite an issue. Despite Stable Diffusion proving to be adequate on my 2060, TorToiSe takes quite some time with modest settings.
+	- If it did bother me (or bothers you), I would just rent out a Paperspace instance.
+	- There's still new gains to be had in diminishing the tax on computing.
+* reproducability in a voice depends on the "compatability" with the model TorToiSe was trained on.
+	- However, this also appears to be similar to 11.AI, where it was mostly trained on audiobook readings.
 * the lack of an obvious analog to the "stability" and "similarity" sliders kind of sucks, but it's not the end of the world.
 	However, the `temperature` option seems to prove to be a proper analog to either of these.
-* I'm not sure if this is specifically an """algorithm""" problem, or is just the nature of sampling, but the GPU is grossly underutilized for compute. I could be wrong and I actually have something misconfigured.
 
 However, I can look past these as TorToiSe offers, in comparison to 11.AI:
 * the "speaking too fast" issue does not exist with TorToiSe. I don't need to fight with it by pretending I'm a Gaia user in the early 2000s by sprinkling ellipses.
