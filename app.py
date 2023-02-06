@@ -5,6 +5,7 @@ import torch
 import torchaudio
 import time
 import json
+import base64
 
 from datetime import datetime
 from tortoise.api import TextToSpeech
@@ -31,13 +32,16 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
     if voice_samples is not None:
         sample_voice = voice_samples[0]
         conditioning_latents = tts.get_conditioning_latents(voice_samples, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)
-        torch.save(conditioning_latents, os.path.join(f'./tortoise/voices/{voice}/', f'cond_latents.pth'))
+        if voice != "microphone":
+            torch.save(conditioning_latents, os.path.join(f'./tortoise/voices/{voice}/', f'cond_latents.pth'))
         voice_samples = None
     else:
         sample_voice = None
 
     if seed == 0:
         seed = None
+
+    print(conditioning_latents)
 
     start_time = time.time()
 
@@ -150,6 +154,9 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
     with open(os.path.join(outdir, f'input.txt'), 'w', encoding="utf-8") as f:
         f.write(json.dumps(info, indent='\t') )
 
+    if voice is not None and conditioning_latents is not None:
+        with open(os.path.join(f'./tortoise/voices/{voice}/', f'cond_latents.pth'), 'rb') as f:
+            info['latents'] = base64.b64encode(f.read()).decode("ascii")
 
     print(f"Saved to '{outdir}'")
 
@@ -185,17 +192,34 @@ def update_presets(value):
     else:
         return (gr.update(), gr.update())
 
-def read_metadata(file):
+def read_metadata(file, save_latents=True):
     j = None
+    latents = None
+
     if file is not None:
         metadata = music_tag.load_file(file.name)
         if 'lyrics' in metadata:
             j = json.loads(str(metadata['lyrics']))
-            print(j)
-    return j
+
+            if 'latents' in j and save_latents:
+                latents = base64.b64decode(j['latents'])
+                del j['latents']
+
+    if latents and save_latents:
+        outdir='/voices/.temp/'
+        os.makedirs(os.path.join(outdir), exist_ok=True)
+        with open(os.path.join(outdir, 'cond_latents.pth'), 'wb') as f:
+            f.write(latents)
+        latents = os.path.join(outdir, 'cond_latents.pth')
+
+    return (
+        j,
+        latents
+    )
 
 def copy_settings(file):
-    metadata = read_metadata(file)
+    metadata, latents = read_metadata(file, save_latents=False)
+    
     if metadata is None:
         return None
 
@@ -330,11 +354,15 @@ def main():
                     copy_button = gr.Button(value="Copy Settings")
                 with gr.Column():
                     metadata_out = gr.JSON(label="Audio Metadata")
+                    latents_out = gr.File(type="binary", label="Voice Latents")
 
                     audio_in.upload(
                         fn=read_metadata,
                         inputs=audio_in,
-                        outputs=metadata_out,
+                        outputs=[
+                            metadata_out,
+                            latents_out
+                        ]
                     )
 
                     copy_button.click(copy_settings,
