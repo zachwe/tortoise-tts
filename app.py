@@ -27,7 +27,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
     
     if voice_samples is not None:
         sample_voice = voice_samples[0]
-        conditioning_latents = tts.get_conditioning_latents(voice_samples, progress=progress)
+        conditioning_latents = tts.get_conditioning_latents(voice_samples, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)
         torch.save(conditioning_latents, os.path.join(f'./tortoise/voices/{voice}/', f'cond_latents.pth'))
         voice_samples = None
     else:
@@ -265,6 +265,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--share", action='store_true', help="Lets Gradio return a public URL to use anywhere")
     parser.add_argument("--low-vram", action='store_true', help="Disables some optimizations that increases VRAM usage")
+    parser.add_argument("--cond-latent-max-chunk-size", type=int, default=None, help="Sets an upper limit to audio chunk size when computing conditioning latents")
     args = parser.parse_args()
 
     tts = TextToSpeech(minor_optimizations=not args.low_vram)
