@@ -97,7 +97,9 @@ Now you're ready to generate clips. With the command prompt still open, simply e
 
 If you're looking to access your copy of TorToiSe from outside your local network, pass `--share` into the command (for example, `python app.py --share`). You'll get a temporary gradio link to use.
 
-You'll be presented with a bunch of options, but do not be overwhelmed, as most of the defaults are sane, but below are a rough explanation on which input does what:
+### Generate
+
+You'll be presented with a bunch of options in the default `Generate` tab, but do not be overwhelmed, as most of the defaults are sane, but below are a rough explanation on which input does what:
 * `Prompt`: text you want to be read. You wrap text in `[brackets]` for "prompt engineering", where it'll affect the output, but those words won't actually be read.
 * `Line Delimiter`: String to split the prompt into pieces. The stitched clip will be stored as `combined.wav`
 	- Setting this to `\n` will generate each line as one clip before stitching it. Leave blank to disable this.
@@ -115,9 +117,6 @@ You'll be presented with a bunch of options, but do not be overwhelmed, as most 
 * `Diffusion Sampler`: sampler method during the diffusion pass. Currently, only `P` and `DDIM` are added, but does not seem to offer any substantial differences in my short tests.
 	`P` refers to the default, vanilla sampling method in `diffusion.py`.
 	To reiterate, this ***only*** is useful for the diffusion decoding path, after the autoregressive outputs are generated.
-Below are an explanation of experimental flags. Messing with these might impact performance, as these are exposed only if you know what you are doing.
-* `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower.
-* `Conditional Free`: a quality boosting improvement at the cost of some performance. Enabled by default, as I think the penaly is negligible in the end.
 
 After you fill everything out, click `Run`, and wait for your output in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
 
@@ -128,6 +127,29 @@ To save you from headaches, I strongly recommend playing around with shorter sen
 As a quick optimization, I modified the script to have the `conditional_latents` are saved after loading voice samples, and subsequent uses will load that file directly (at the cost of not returning the `Sample voice` to the web UI). Additionally, these `conditional_latents` are also computed in a way to use the entire clip, rather than the first four seconds the original tortoise-tts uses. If there's voice samples that have a modification time newer than this cached file, it'll skip loading it and load the normal WAVs instead.
 
 **!**NOTE**!**: cached `latents.pth` files generated before 2023.02.05 will be ignored, due to a change in computing the conditiona latents. This *should* help bump up voice cloning quality. Apologies for the inconvenience.
+
+### Utilities
+
+In this tab, you can find some helper utilities that might be of assistance.
+
+For now, an analog to the PNG info found in Voldy's Stable Diffusion Web UI resides here. With it, you can upload an audio file generated with this web UI to view the settings used to generate that output. Additionally, the voice latents used to generate the uploaded audio clip can be extracted.
+
+If you want to reuse its generation settings, simply click "Copy Settings".
+
+### Settings
+
+This tab (should) hold a bunch of other settings, from tunables that shouldn't be tampered with, to settings pertaining to the web UI itself.
+
+Below are settings that override the default launch arguments. Some of these require restarting to work.
+* `Public Share Gradio`: overrides `--share`. Tells Gradio to generate a public URL for the web UI
+* `Check for Updates`: checks for updates on page load and notifies in console. Only works if you pulled this repo from a gitea instance.
+* `Low VRAM`: disables optimizations in TorToiSe that increases VRAM consumption. Suggested if your GPU has under 6GiB.
+* `Voice Latent Max Chunk Size`: during the voice latents calculation pass, this limits how large, in bytes, a chunk can be. Large values can run into VRAM OOM errors.
+* `Concurrency Count`: how many Gradio events the queue can process at once. Leave this over 1 if you want to modify settings in the UI that updates other settings while generating audio clips.
+
+Below are an explanation of experimental flags. Messing with these might impact performance, as these are exposed only if you know what you are doing.
+* `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower.
+* `Conditional Free`: a quality boosting improvement at the cost of some performance. Enabled by default, as I think the penaly is negligible in the end.
 
 ## Example(s)
 
