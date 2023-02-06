@@ -4,11 +4,14 @@ import gradio as gr
 import torch
 import torchaudio
 import time
+import json
 
 from datetime import datetime
 from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
 from tortoise.utils.text import split_and_recombine_text
+
+import music_tag
 
 def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, experimentals, progress=gr.Progress()):
     if voice != "microphone":
@@ -88,13 +91,19 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
         if isinstance(gen, list):
             for j, g in enumerate(gen):
                 audio = g.squeeze(0).cpu()
-                audio_cache[f"candidate_{j}/result_{line}.wav"] = audio
+                audio_cache[f"candidate_{j}/result_{line}.wav"] = {
+                    'audio': audio,
+                    'text': cut_text,
+                }
 
                 os.makedirs(os.path.join(outdir, f'candidate_{j}'), exist_ok=True)
                 torchaudio.save(os.path.join(outdir, f'candidate_{j}/result_{line}.wav'), audio, 24000)
         else:
             audio = gen.squeeze(0).cpu()
-            audio_cache[f"result_{line}.wav"] = audio
+            audio_cache[f"result_{line}.wav"] = {
+                'audio': audio,
+                'text': cut_text,
+            }
             torchaudio.save(os.path.join(outdir, f'result_{line}.wav'), audio, 24000)
  
     output_voice = None
@@ -103,10 +112,10 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
             audio_clips = []
             for line in range(len(texts)):
                 if isinstance(gen, list):
-                    piece = audio_cache[f'candidate_{candidate}/result_{line}.wav']
+                    audio = audio_cache[f'candidate_{candidate}/result_{line}.wav']['audio']
                 else:
-                    piece = audio_cache[f'result_{line}.wav']
-                audio_clips.append(piece)
+                    audio = audio_cache[f'result_{line}.wav']['audio']
+                audio_clips.append(audio)
             audio_clips = torch.cat(audio_clips, dim=-1)
             torchaudio.save(os.path.join(outdir, f'combined_{candidate}.wav'), audio_clips, 24000)
             
@@ -118,17 +127,39 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
         else:
             output_voice = gen
         output_voice = (24000, output_voice.squeeze().cpu().numpy())
- 
-    info = f"{datetime.now()} | Voice: {','.join(voices)} | Text: {text} | Quality: {preset} preset / {num_autoregressive_samples} samples / {diffusion_iterations} iterations | Temperature: {temperature} | Time Taken (s): {time.time()-start_time} | Seed: {seed}\n"
+
+    info = {
+        'text': text,
+        'delimiter': delimiter,
+        'emotion': emotion,
+        'prompt': prompt,
+        'voice': voice,
+        'mic_audio': mic_audio,
+        'preset': preset,
+        'seed': seed,
+        'candidates': candidates,
+        'num_autoregressive_samples': num_autoregressive_samples,
+        'diffusion_iterations': diffusion_iterations,
+        'temperature': temperature,
+        'diffusion_sampler': diffusion_sampler,
+        'breathing_room': breathing_room,
+        'experimentals': experimentals,
+        'time': time.time()-start_time,
+    }
     
     with open(os.path.join(outdir, f'input.txt'), 'w', encoding="utf-8") as f:
-        f.write(info)
+        f.write(json.dumps(info, indent='\t') )
 
-    with open("results.log", "w", encoding="utf-8") as f:
-        f.write(info)
 
     print(f"Saved to '{outdir}'")
-    
+
+
+    for path in audio_cache:
+        info['text'] = audio_cache[path]['text']
+
+        metadata = music_tag.load_file(os.path.join(outdir, path))
+        metadata['lyrics'] = json.dumps(info) 
+        metadata.save()
  
     if sample_voice is not None:
         sample_voice = (22050, sample_voice.squeeze().cpu().numpy())
@@ -265,7 +296,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--share", action='store_true', help="Lets Gradio return a public URL to use anywhere")
     parser.add_argument("--low-vram", action='store_true', help="Disables some optimizations that increases VRAM usage")
-    parser.add_argument("--cond-latent-max-chunk-size", type=int, default=None, help="Sets an upper limit to audio chunk size when computing conditioning latents")
+    parser.add_argument("--cond-latent-max-chunk-size", type=int, default=1000000, help="Sets an upper limit to audio chunk size when computing conditioning latents")
     args = parser.parse_args()
 
     tts = TextToSpeech(minor_optimizations=not args.low_vram)
