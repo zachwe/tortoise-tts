@@ -145,6 +145,7 @@ Below are settings that override the default launch arguments. Some of these req
 * `Check for Updates`: checks for updates on page load and notifies in console. Only works if you pulled this repo from a gitea instance.
 * `Low VRAM`: disables optimizations in TorToiSe that increases VRAM consumption. Suggested if your GPU has under 6GiB.
 * `Voice Latent Max Chunk Size`: during the voice latents calculation pass, this limits how large, in bytes, a chunk can be. Large values can run into VRAM OOM errors.
+* `Sample Batch Size`: sets the batch size when generating autoregressive samples. Bigger batches result in faster compute, at the cost of increased VRAM consumption. Leave to 0 to calculate a "best" fit.
 * `Concurrency Count`: how many Gradio events the queue can process at once. Leave this over 1 if you want to modify settings in the UI that updates other settings while generating audio clips.
 
 Below are an explanation of experimental flags. Messing with these might impact performance, as these are exposed only if you know what you are doing.

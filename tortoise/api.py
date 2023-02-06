@@ -391,6 +391,7 @@ class TextToSpeech:
             return_deterministic_state=False,
             # autoregressive generation parameters follow
             num_autoregressive_samples=512, temperature=.8, length_penalty=1, repetition_penalty=2.0, top_p=.8, max_mel_tokens=500,
+            sample_batch_size=None,
             # CVVP parameters follow
             cvvp_amount=.0,
             # diffusion generation parameters follow
@@ -463,6 +464,8 @@ class TextToSpeech:
         diffusion_conditioning = diffusion_conditioning.to(self.device)
 
         diffuser = load_discrete_vocoder_diffuser(desired_diffusion_steps=diffusion_iterations, cond_free=cond_free, cond_free_k=cond_free_k)
+
+        self.autoregressive_batch_size = pick_best_batch_size_for_gpu() if sample_batch_size is None else sample_batch_size
 
         with torch.no_grad():
             samples = []
