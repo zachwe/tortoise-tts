@@ -130,7 +130,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, preset, seed, c
 
     info = {
         'text': text,
-        'delimiter': delimiter,
+        'delimiter': '\\n' if delimiter == "\n" else delimiter,
         'emotion': emotion,
         'prompt': prompt,
         'voice': voice,
@@ -185,89 +185,121 @@ def update_presets(value):
     else:
         return (gr.update(), gr.update())
 
+def read_metadata(file):
+    j = None
+    if file is not None:
+        metadata = music_tag.load_file(file.name)
+        if 'lyrics' in metadata:
+            j = json.loads(str(metadata['lyrics']))
+            print(j)
+    return j
+
+def copy_settings(file):
+    metadata = read_metadata(file)
+    if metadata is None:
+        return None
+
+    return (
+        metadata['text'],
+        metadata['delimiter'],
+        metadata['emotion'],
+        metadata['prompt'],
+        metadata['voice'],
+        metadata['mic_audio'],
+        metadata['preset'],
+        metadata['seed'],
+        metadata['candidates'],
+        metadata['num_autoregressive_samples'],
+        metadata['diffusion_iterations'],
+        metadata['temperature'],
+        metadata['diffusion_sampler'],
+        metadata['breathing_room'],
+        metadata['experimentals'],
+    )
+
 def update_voices():
     return gr.Dropdown.update(choices=os.listdir(os.path.join("tortoise", "voices")) + ["microphone"])
 
 def main():
-    with gr.Blocks() as demo:
-        with gr.Row():
-            with gr.Column():
-                text = gr.Textbox(lines=4, label="Prompt")
-                delimiter = gr.Textbox(lines=1, label="Line Delimiter", placeholder="\\n")
+    with gr.Blocks() as webui:
+        with gr.Tab("Generate"):
+            with gr.Row():
+                with gr.Column():
+                    text = gr.Textbox(lines=4, label="Prompt")
+                    delimiter = gr.Textbox(lines=1, label="Line Delimiter", placeholder="\\n")
 
-                emotion = gr.Radio(
-                    ["None", "Happy", "Sad", "Angry", "Disgusted", "Arrogant", "Custom"],
-                    value="None",
-                    label="Emotion",
-                    type="value",
-                    interactive=True
-                )
-                prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
-                voice = gr.Dropdown(
-                    os.listdir(os.path.join("tortoise", "voices")) + ["microphone"],
-                    label="Voice",
-                    type="value",
-                )
-                mic_audio = gr.Audio(
-                    label="Microphone Source",
-                    source="microphone",
-                    type="filepath",
-                )
-                refresh_voices = gr.Button(value="Refresh Voice List")
-                refresh_voices.click(update_voices,
-                    inputs=None,
-                    outputs=voice
-                )
-                
-                prompt.change(fn=lambda value: gr.update(value="Custom"),
-                    inputs=prompt,
-                    outputs=emotion
-                )
-                mic_audio.change(fn=lambda value: gr.update(value="microphone"),
-                    inputs=mic_audio,
-                    outputs=voice
-                )
-            with gr.Column():
-                candidates = gr.Slider(value=1, minimum=1, maximum=6, step=1, label="Candidates")
-                seed = gr.Number(value=0, precision=0, label="Seed")
+                    emotion = gr.Radio(
+                        ["None", "Happy", "Sad", "Angry", "Disgusted", "Arrogant", "Custom"],
+                        value="None",
+                        label="Emotion",
+                        type="value",
+                        interactive=True
+                    )
+                    prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
+                    voice = gr.Dropdown(
+                        os.listdir(os.path.join("tortoise", "voices")) + ["microphone"],
+                        label="Voice",
+                        type="value",
+                    )
+                    mic_audio = gr.Audio(
+                        label="Microphone Source",
+                        source="microphone",
+                        type="filepath",
+                    )
+                    refresh_voices = gr.Button(value="Refresh Voice List")
+                    refresh_voices.click(update_voices,
+                        inputs=None,
+                        outputs=voice
+                    )
+                    
+                    prompt.change(fn=lambda value: gr.update(value="Custom"),
+                        inputs=prompt,
+                        outputs=emotion
+                    )
+                    mic_audio.change(fn=lambda value: gr.update(value="microphone"),
+                        inputs=mic_audio,
+                        outputs=voice
+                    )
+                with gr.Column():
+                    candidates = gr.Slider(value=1, minimum=1, maximum=6, step=1, label="Candidates")
+                    seed = gr.Number(value=0, precision=0, label="Seed")
 
-                preset = gr.Radio(
-                    ["Ultra Fast", "Fast", "Standard", "High Quality", "None"],
-                    value="None",
-                    label="Preset",
-                    type="value",
-                )
-                num_autoregressive_samples = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Samples")
-                diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations")
+                    preset = gr.Radio(
+                        ["Ultra Fast", "Fast", "Standard", "High Quality", "None"],
+                        value="None",
+                        label="Preset",
+                        type="value",
+                    )
+                    num_autoregressive_samples = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Samples")
+                    diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations")
 
-                temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
-                breathing_room = gr.Slider(value=12, minimum=1, maximum=32, step=1, label="Pause Size")
-                diffusion_sampler = gr.Radio(
-                    ["P", "DDIM"], # + ["K_Euler_A", "DPM++2M"],
-                    value="P",
-                    label="Diffusion Samplers",
-                    type="value",
-                )
+                    temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
+                    breathing_room = gr.Slider(value=12, minimum=1, maximum=32, step=1, label="Pause Size")
+                    diffusion_sampler = gr.Radio(
+                        ["P", "DDIM"], # + ["K_Euler_A", "DPM++2M"],
+                        value="P",
+                        label="Diffusion Samplers",
+                        type="value",
+                    )
 
-                experimentals = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=["Conditioning-Free"], label="Experimental Flags")
+                    experimentals = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=["Conditioning-Free"], label="Experimental Flags")
 
-                preset.change(fn=update_presets,
-                    inputs=preset,
-                    outputs=[
-                        num_autoregressive_samples,
-                        diffusion_iterations,
-                    ],
-                )
-            with gr.Column():
-                selected_voice = gr.Audio(label="Source Sample")
-                output_audio = gr.Audio(label="Output")
-                usedSeed = gr.Textbox(label="Seed", placeholder="0", interactive=False) 
-                
-                submit = gr.Button(value="Generate")
-                #stop = gr.Button(value="Stop")
-                
-                submit_event = submit.click(generate,
-                    inputs=[
+                    preset.change(fn=update_presets,
+                        inputs=preset,
+                        outputs=[
+                            num_autoregressive_samples,
+                            diffusion_iterations,
+                        ],
+                    )
+                with gr.Column():
+                    selected_voice = gr.Audio(label="Source Sample")
+                    output_audio = gr.Audio(label="Output")
+                    usedSeed = gr.Textbox(label="Seed", placeholder="0", interactive=False) 
+                    
+                    submit = gr.Button(value="Generate")
+                    #stop = gr.Button(value="Stop")
+                    
+                    input_settings = [
                         text,
                         delimiter,
                         emotion,
@@ -283,13 +315,34 @@ def main():
                         diffusion_sampler,
                         breathing_room,
                         experimentals,
-                    ],
-                    outputs=[selected_voice, output_audio, usedSeed],
-                )
+                    ]
 
-                #stop.click(fn=None, inputs=None, outputs=None, cancels=[submit_event])
+                    submit_event = submit.click(generate,
+                        inputs=input_settings,
+                        outputs=[selected_voice, output_audio, usedSeed],
+                    )
 
-    demo.queue().launch(share=args.share)
+                    #stop.click(fn=None, inputs=None, outputs=None, cancels=[submit_event])
+        with gr.Tab("Utilities"):
+            with gr.Row():
+                with gr.Column():
+                    audio_in = gr.File(type="file", label="Audio Input", file_types=["audio"])
+                    copy_button = gr.Button(value="Copy Settings")
+                with gr.Column():
+                    metadata_out = gr.JSON(label="Audio Metadata")
+
+                    audio_in.upload(
+                        fn=read_metadata,
+                        inputs=audio_in,
+                        outputs=metadata_out,
+                    )
+
+                    copy_button.click(copy_settings,
+                        inputs=audio_in, # JSON elements cannt be used as inputs
+                        outputs=input_settings
+                    )
+
+    webui.queue().launch(share=args.share)
 
 
 if __name__ == "__main__":
@@ -299,6 +352,7 @@ if __name__ == "__main__":
     parser.add_argument("--cond-latent-max-chunk-size", type=int, default=1000000, help="Sets an upper limit to audio chunk size when computing conditioning latents")
     args = parser.parse_args()
 
+    print("Initializating TorToiSe...")
     tts = TextToSpeech(minor_optimizations=not args.low_vram)
 
     main()
