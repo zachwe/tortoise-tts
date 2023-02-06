@@ -284,7 +284,7 @@ class TextToSpeech:
         if self.minor_optimizations:
             self.cvvp = self.cvvp.to(self.device)
 
-    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, enforced_length=102400):
+    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, enforced_length=None, chunk_tensors=False):
         """
         Transforms one or more voice_samples into a tuple (autoregressive_conditioning_latent, diffusion_conditioning_latent).
         These are expressive learned latents that encode aspects of the provided clips like voice, intonation, and acoustic
@@ -303,16 +303,34 @@ class TextToSpeech:
             auto_conds = torch.stack(auto_conds, dim=1)
             
             diffusion_conds = []
-
-            for sample in tqdm_override(voice_samples, verbose=verbose, progress=progress, desc="Computing conditioning latents..."):
+            
+            samples = [] # resample in its own pass to make things easier
+            for sample in voice_samples:
                 # The diffuser operates at a sample rate of 24000 (except for the latent inputs)
-                sample = torchaudio.functional.resample(sample, 22050, 24000)
-                chunks = torch.chunk(sample, int(sample.shape[-1] / enforced_length) + 1, dim=1)
+                samples.append(torchaudio.functional.resample(sample, 22050, 24000))
+
+            if enforced_length is None:
+                for sample in tqdm_override(samples, verbose=verbose and len(samples) > 1, progress=progress if len(samples) > 1 else None, desc="Calculating size of best fit..."):
+                    if chunk_tensors:
+                        enforced_length = sample.shape[-1] if enforced_length is None else min( enforced_length, sample.shape[-1] )
+                    else:
+                        enforced_length = sample.shape[-1] if enforced_length is None else max( enforced_length, sample.shape[-1] )
+
+            print(f"Size of best fit: {enforced_length}")
+
+            chunks = []
+            if chunk_tensors:
+                for sample in tqdm_override(samples, verbose=verbose, progress=progress, desc="Slicing samples into chunks..."):
+                    sliced = torch.chunk(sample, int(sample.shape[-1] / enforced_length) + 1, dim=1)
+                    for s in sliced:
+                        chunks.append(s)
+            else:
+                chunks = samples
                 
-                for chunk in chunks:
-                    chunk = pad_or_truncate(chunk, enforced_length)
-                    cond_mel = wav_to_univnet_mel(chunk.to(self.device), do_normalization=False, device=self.device)
-                    diffusion_conds.append(cond_mel)
+            for chunk in tqdm_override(chunks, verbose=verbose, progress=progress, desc="Computing conditioning latents..."):
+                chunk = pad_or_truncate(chunk, enforced_length)
+                cond_mel = wav_to_univnet_mel(chunk.to(self.device), do_normalization=False, device=self.device)
+                diffusion_conds.append(cond_mel)
 
             diffusion_conds = torch.stack(diffusion_conds, dim=1)
 
@@ -424,6 +442,7 @@ class TextToSpeech:
         :return: Generated audio clip(s) as a torch tensor. Shape 1,S if k=1 else, (k,1,S) where S is the sample length.
                  Sample rate is 24kHz.
         """
+        self.diffusion.enable_fp16 = half_p
         deterministic_seed = self.deterministic_state(seed=use_deterministic_seed)
 
         text_tokens = torch.IntTensor(self.tokenizer.encode(text)).unsqueeze(0).to(self.device)
@@ -432,7 +451,7 @@ class TextToSpeech:
 
         auto_conds = None
         if voice_samples is not None:
-            auto_conditioning, diffusion_conditioning, auto_conds, _ = self.get_conditioning_latents(voice_samples, return_mels=True)
+            auto_conditioning, diffusion_conditioning, auto_conds, _ = self.get_conditioning_latents(voice_samples, return_mels=True, verbose=True)
         elif conditioning_latents is not None:
             auto_conditioning, diffusion_conditioning = conditioning_latents
         else:
@@ -441,7 +460,7 @@ class TextToSpeech:
         diffusion_conditioning = diffusion_conditioning.to(self.device)
 
         diffuser = load_discrete_vocoder_diffuser(desired_diffusion_steps=diffusion_iterations, cond_free=cond_free, cond_free_k=cond_free_k)
-
+        
         with torch.no_grad():
             samples = []
             num_batches = num_autoregressive_samples // self.autoregressive_batch_size
