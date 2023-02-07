@@ -308,7 +308,7 @@ def check_for_updates():
     return False
 
 def update_voices():
-    return gr.Dropdown.update(choices=os.listdir(os.listdir("./tortoise/voices")) + ["microphone"])
+    return gr.Dropdown.update(choices=sorted(os.listdir("./tortoise/voices")) + ["microphone"])
 
 def export_exec_settings( share, check_for_updates, low_vram, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
     args.share = share
@@ -351,7 +351,7 @@ def main():
                     )
                     prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
                     voice = gr.Dropdown(
-                        os.listdir("./tortoise/voices") + ["microphone"],
+                        sorted(os.listdir("./tortoise/voices")) + ["microphone"],
                         label="Voice",
                         type="value",
                     )

@@ -8,12 +8,6 @@ Similar to my own findings for Stable Diffusion image generation, this rentry ma
 
 I link those a bit later on as alternatives for Windows+AMD users. You're free to skip the installation section and jump after that.
 
->\> Wheres the love for Linux abloobloo
-
-I'm extremely lazy and can't be assed to install Arch Linux again, much less create shell script equivalents. The commands should be almost 1:1 with what's in the batch file, save for the line to activate the venv.
-
-I leave this as an exercise to the Linux reader.
-
 >\>Ugh... why bother when I can just abuse 11.AI?
 
 I very much encourage (You) to use 11.AI while it's still viable to use. For the layman, it's easier to go through the hoops of coughing up the $5 or abusing the free trial over actually setting up a TorToiSe environment and dealing with its quirks.
@@ -37,17 +31,22 @@ My fork boasts the following additions, fixes, and optimizations:
 
 Outside of the very small prerequisites, everything needed to get TorToiSe working is included in the repo.
 
-For setting up on Linux, the general framework should be the same, but left as an exercise to the reader.
-
 For Windows users with an AMD GPU, tough luck, as ROCm drivers are not (easily) available for Windows, and requires inane patches with PyTorch. Consider using the [Colab notebook](https://colab.research.google.com/drive/1wVVqUPqwiDBUVeWWOUNglpGhU3hg_cbR?usp=sharing), or the [Hugging Face space](https://huggingface.co/spaces/mdnestor/tortoise), for `tortoise-tts`.
 
 ### Pre-Requirements
 
-Python 3.9: https://www.python.org/downloads/release/python-3913/
+Windows:
+* Python 3.9: https://www.python.org/downloads/release/python-3913/
+* Git (optional): https://git-scm.com/download/win
 
-Git (optional): https://git-scm.com/download/win
+Linux:
+* python3.x
+* git
+* ROCm for AMD, CUDA for NVIDIA
 
 ### Setup
+
+#### Windows
 
 Download Python and Git and run their installers.
 
@@ -59,14 +58,32 @@ Afterwards, run `setup.bat` to automatically set things up.
 
 If you've done everything right, you shouldn't have any errors.
 
+#### Linux
+
+First, make sure you have both `python3.x` and `git` installed, as well as the required compute platform according to your GPU (ROCm or CUDA)
+
+```
+git clone https://git.ecker.tech/mrq/tortoise-tts
+cd tortoise-tts
+chmod +x *.sh
+```
+
+Then, depending on your GPU:
+`./setup-rocm.sh # if AMD`
+
+`./setup-cuda.sh # if NVIDIA`
+
+And you should be done!
+
 ### Updating
 
-To check for updates, simply run `update.bat`. It should pull from the repo, as well as fetch for any new dependencies.
+To check for updates, simply run `update.bat` (or `update.sh`). It should pull from the repo, as well as fetch for any new dependencies.
 
 ### Pitfalls You May Encounter
 
 I'll try and make a list of "common" (or what I feel may be common that I experience) issues with getting TorToiSe set up:
-
+* `CUDA is NOT available for use.`: If you're on Linux, you failed to set up CUDA (if NVIDIA) or ROCm (if AMD). Please make sure you have these installed on your system.
+	If you're on Windows with an AMD card, you're stuck out of luck, as ROCm is not available on Windows (without major hoops to be jumped). If you're on an NVIDIA GPU, then I'm not sure what went wrong.
 * `failed reading zip archive: failed finding central directory`: You had a file fail to download completely during the model downloading initialization phase. Please open either `.\models\tortoise\` or `.\models\transformers\`, and delete the offending file.
 	You can deduce what that file is by reading the stack trace. A few lines above the last like will be a line trying to read a model path.
 * `torch.cuda.OutOfMemoryError: CUDA out of memory.`: You most likely have a GPU with low VRAM (~4GiB), and the small optimizations with keeping data on the GPU is enough to OOM. Please open the `start.bat` file and add `--low-vram` to the command (for example: `py app.py --low-vram`) to disable those small optimizations.
@@ -93,7 +110,7 @@ After preparing your clips as WAV files at a sample rate of 22050 Hz, open up th
 
 ## Using the Software
 
-Now you're ready to generate clips. With the command prompt still open, simply enter `start.bat`, and wait for it to print out a URL to open in your browser, something like `http://127.0.0.1:7860`.
+Now you're ready to generate clips. With the command prompt still open, simply enter `start.bat` (or `start.sh`), and wait for it to print out a URL to open in your browser, something like `http://127.0.0.1:7860`.
 
 If you're looking to access your copy of TorToiSe from outside your local network, pass `--share` into the command (for example, `python app.py --share`). You'll get a temporary gradio link to use.
 

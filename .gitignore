@@ -1,6 +1,8 @@
 # ignores user files
+/tortoise-venv/
 /tortoise/voices/
 /models/
+/config/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
