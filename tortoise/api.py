@@ -226,13 +226,21 @@ class TextToSpeech:
                                  Default is true.
         :param device: Device to use when running the model. If omitted, the device will be automatically chosen.
         """
+        if not torch.cuda.is_available():
+            print("CUDA is NOT available for use.")
+            # minor_optimizations = False
+            # enable_redaction = False
+
+        if device is None:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
         self.minor_optimizations = minor_optimizations
         self.models_dir = models_dir
         self.autoregressive_batch_size = pick_best_batch_size_for_gpu() if autoregressive_batch_size is None or autoregressive_batch_size == 0 else autoregressive_batch_size
         self.enable_redaction = enable_redaction
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = device
         if self.enable_redaction:
-            self.aligner = Wav2VecAlignment()
+            self.aligner = Wav2VecAlignment(device=self.device)
 
         self.tokenizer = VoiceBpeTokenizer()
 

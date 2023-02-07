@@ -181,7 +181,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
     if sample_voice is not None:
         sample_voice = (22050, sample_voice.squeeze().cpu().numpy())
  
-    print(f"Saved to '{outdir}'")
+    print(f"Generation took {info['time']} seconds, saved to '{outdir}'\n")
 
     info['seed'] = settings['use_deterministic_seed']
     del info['latents']
@@ -332,9 +332,6 @@ def export_exec_settings( share, check_for_updates, low_vram, cond_latent_max_ch
 
 
 def main():
-    if not torch.cuda.is_available():
-        print("CUDA is NOT available for use.")
-
     with gr.Blocks() as webui:
         with gr.Tab("Generate"):
             with gr.Row():
