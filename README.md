@@ -168,6 +168,9 @@ Below are settings that override the default launch arguments. Some of these req
 Below are an explanation of experimental flags. Messing with these might impact performance, as these are exposed only if you know what you are doing.
 * `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower.
 * `Conditional Free`: a quality boosting improvement at the cost of some performance. Enabled by default, as I think the penaly is negligible in the end.
+* `CVVP Weight`: governs how much weight the CVVP model should influence candidates. The original documentation mentions this is deprecated as it does not really influence things, but you're still free to play around with it.
+	Currently, setting requires regenerating your voice latents, as I forgot to have it return some extra data that weighing against the CVVP model uses. Oops.
+	Setting this to 1 leads to bad behavior.
 
 ## Example(s)
 

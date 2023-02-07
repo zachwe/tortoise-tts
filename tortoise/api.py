@@ -124,7 +124,7 @@ def format_conditioning(clip, cond_length=132300, device='cuda', sampling_rate=2
     elif gap > 0:
         rand_start = random.randint(0, gap)
         clip = clip[:, rand_start:rand_start + cond_length]
-    mel_clip = TorchMelSpectrogram(sampling_rate=sample_rate)(clip.unsqueeze(0)).squeeze(0)
+    mel_clip = TorchMelSpectrogram(sampling_rate=sampling_rate)(clip.unsqueeze(0)).squeeze(0)
     return mel_clip.unsqueeze(0).to(device)
 
 
@@ -469,7 +469,11 @@ class TextToSpeech:
         if voice_samples is not None:
             auto_conditioning, diffusion_conditioning, auto_conds, _ = self.get_conditioning_latents(voice_samples, return_mels=True, verbose=True)
         elif conditioning_latents is not None:
-            auto_conditioning, diffusion_conditioning = conditioning_latents
+            latent_tuple = conditioning_latents
+            if len(latent_tuple) == 2:
+                auto_conditioning, diffusion_conditioning = conditioning_latents
+            else:
+                auto_conditioning, diffusion_conditioning, auto_conds, _ = conditioning_latents
         else:
             auto_conditioning, diffusion_conditioning = self.get_random_conditioning_latents()
         auto_conditioning = auto_conditioning.to(self.device)
@@ -539,6 +543,7 @@ class TextToSpeech:
                             clip_results.append(cvvp * cvvp_amount + clvp * (1-cvvp_amount))
                     else:
                         clip_results.append(clvp)
+
             clip_results = torch.cat(clip_results, dim=0)
             samples = torch.cat(samples, dim=0)
             best_results = samples[torch.topk(clip_results, k=k).indices]

@@ -18,7 +18,7 @@ from tortoise.utils.audio import load_audio, load_voice, load_voices
 from tortoise.utils.text import split_and_recombine_text
 
 
-def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, experimentals, progress=gr.Progress(track_tqdm=True)):
+def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, cvvp_weight, experimentals, progress=gr.Progress(track_tqdm=True)):
     if voice != "microphone":
         voices = [voice]
     else:
@@ -35,7 +35,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
     
     if voice_samples is not None:
         sample_voice = voice_samples[0]
-        conditioning_latents = tts.get_conditioning_latents(voice_samples, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)
+        conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=True, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)
         if voice != "microphone":
             torch.save(conditioning_latents, f'./tortoise/voices/{voice}/cond_latents.pth')
         voice_samples = None
@@ -44,6 +44,10 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
 
     if seed == 0:
         seed = None
+
+    if conditioning_latents is not None and len(conditioning_latents) == 2 and cvvp_weight > 0:
+        print("Requesting weighing against CVVP weight, but voice latents are missing some extra data. Please regenerate your voice latents.")
+        cvvp_weight = 0
 
     start_time = time.time()
 
@@ -66,6 +70,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
         'progress': progress,
         'half_p': "Half Precision" in experimentals,
         'cond_free': "Conditioning-Free" in experimentals,
+        'cvvp_amount': cvvp_weight,
     }
 
     if delimiter == "\\n":
@@ -159,6 +164,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
         'temperature': temperature,
         'diffusion_sampler': diffusion_sampler,
         'breathing_room': breathing_room,
+        'cvvp_weight': cvvp_weight,
         'experimentals': experimentals,
         'time': time.time()-start_time,
     }
@@ -244,20 +250,21 @@ def import_generate_settings(file="./config/generate.json"):
         return None
 
     return (
-        settings['text'],
-        settings['delimiter'],
-        settings['emotion'],
-        settings['prompt'],
-        settings['voice'],
-        settings['mic_audio'],
-        settings['seed'],
-        settings['candidates'],
-        settings['num_autoregressive_samples'],
-        settings['diffusion_iterations'],
-        settings['temperature'],
-        settings['diffusion_sampler'],
-        settings['breathing_room'],
-        settings['experimentals'],
+        None if 'text' not in settings else settings['text'],
+        None if 'delimiter' not in settings else settings['delimiter'],
+        None if 'emotion' not in settings else settings['emotion'],
+        None if 'prompt' not in settings else settings['prompt'],
+        None if 'voice' not in settings else settings['voice'],
+        None if 'mic_audio' not in settings else settings['mic_audio'],
+        None if 'seed' not in settings else settings['seed'],
+        None if 'candidates' not in settings else settings['candidates'],
+        None if 'num_autoregressive_samples' not in settings else settings['num_autoregressive_samples'],
+        None if 'diffusion_iterations' not in settings else settings['diffusion_iterations'],
+        None if 'temperature' not in settings else settings['temperature'],
+        None if 'diffusion_sampler' not in settings else settings['diffusion_sampler'],
+        None if 'breathing_room' not in settings else settings['breathing_room'],
+        None if 'cvvp_weight' not in settings else settings['cvvp_weight'],
+        None if 'experimentals' not in settings else settings['experimentals'],
     )
 
 def curl(url):
@@ -436,6 +443,7 @@ def main():
 
 
                     experimentals = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=["Conditioning-Free"], label="Experimental Flags")
+                    cvvp_weight = gr.Slider(value=0, minimum=0, maximum=1, label="CVVP Weight")
 
                     check_updates_now = gr.Button(value="Check for Updates")
 
@@ -463,6 +471,7 @@ def main():
             temperature,
             diffusion_sampler,
             breathing_room,
+            cvvp_weight,
             experimentals,
         ]
 
