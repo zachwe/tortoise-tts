@@ -10,6 +10,7 @@ import torch
 import torchaudio
 import music_tag
 import gradio as gr
+import gradio.utils
 
 from datetime import datetime
 
@@ -497,7 +498,6 @@ def main():
 
 
 if __name__ == "__main__":
-
     default_arguments = {
         'share': False,
         'check-for-updates': False,
@@ -521,6 +521,19 @@ if __name__ == "__main__":
     parser.add_argument("--sample-batch-size", default=default_arguments['sample-batch-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
     parser.add_argument("--concurrency-count", type=int, default=default_arguments['concurrency-count'], help="How many Gradio events to process at once")
     args = parser.parse_args()
+
+    if not args.share:
+        def noop(function, return_value=None):
+            def wrapped(*args, **kwargs):
+                return return_value
+            return wrapped
+        gradio.utils.version_check = noop(gradio.utils.version_check)
+        gradio.utils.initiated_analytics = noop(gradio.utils.initiated_analytics)
+        gradio.utils.launch_analytics = noop(gradio.utils.launch_analytics)
+        gradio.utils.integration_analytics = noop(gradio.utils.integration_analytics)
+        gradio.utils.error_analytics = noop(gradio.utils.error_analytics)
+        gradio.utils.log_feature_analytics = noop(gradio.utils.log_feature_analytics)
+        gradio.utils.get_local_ip_address = noop(gradio.utils.get_local_ip_address, 'localhost')
 
     print("Initializating TorToiSe...")
     tts = TextToSpeech(
