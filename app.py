@@ -125,17 +125,17 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
                     audio = audio_cache[f'result_{line}.wav']['audio']
                 audio_clips.append(audio)
             
-            audio_clips = torch.cat(audio_clips, dim=-1).squeeze(0).cpu()
-            torchaudio.save(f'{outdir}/combined_{candidate}.wav', audio_clips, 24000)
-            
+            audio = torch.cat(audio_clips, dim=-1)
+            torchaudio.save(f'{outdir}/combined_{candidate}.wav', audio, 24000)
 
+            audio = audio.squeeze(0).cpu()
             audio_cache[f'combined_{candidate}.wav'] = {
                 'audio': audio,
                 'text': cut_text,
             }
 
             if output_voice is None:
-                output_voice = audio_clips
+                output_voice = audio
     else:
         if isinstance(gen, list):
             output_voice = gen[0]
@@ -332,6 +332,9 @@ def export_exec_settings( share, check_for_updates, low_vram, cond_latent_max_ch
 
 
 def main():
+    if not torch.cuda.is_available():
+        print("CUDA is NOT available for use.")
+
     with gr.Blocks() as webui:
         with gr.Tab("Generate"):
             with gr.Row():
@@ -384,7 +387,7 @@ def main():
                     diffusion_iterations = gr.Slider(value=128, minimum=0, maximum=512, step=1, label="Iterations")
 
                     temperature = gr.Slider(value=0.2, minimum=0, maximum=1, step=0.1, label="Temperature")
-                    breathing_room = gr.Slider(value=12, minimum=1, maximum=32, step=1, label="Pause Size")
+                    breathing_room = gr.Slider(value=8, minimum=1, maximum=32, step=1, label="Pause Size")
                     diffusion_sampler = gr.Radio(
                         ["P", "DDIM"], # + ["K_Euler_A", "DPM++2M"],
                         value="P",
