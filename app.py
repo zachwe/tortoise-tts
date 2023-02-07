@@ -27,7 +27,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
     if voice == "microphone":
         if mic_audio is None:
             raise gr.Error("Please provide audio from mic when choosing `microphone` as a voice input")
-        mic = load_audio(mic_audio, 22050)
+        mic = load_audio(mic_audio, tts.input_sample_rate)
         voice_samples, conditioning_latents = [mic], None
     else:
         progress(0, desc="Loading voice...")
@@ -105,14 +105,14 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
                 }
 
                 os.makedirs(f'{outdir}/candidate_{j}', exist_ok=True)
-                torchaudio.save(f'{outdir}/candidate_{j}/result_{line}.wav', audio, 24000)
+                torchaudio.save(f'{outdir}/candidate_{j}/result_{line}.wav', audio, tts.output_sample_rate)
         else:
             audio = gen.squeeze(0).cpu()
             audio_cache[f"result_{line}.wav"] = {
                 'audio': audio,
                 'text': cut_text,
             }
-            torchaudio.save(f'{outdir}/result_{line}.wav', audio, 24000)
+            torchaudio.save(f'{outdir}/result_{line}.wav', audio, tts.output_sample_rate)
  
     output_voice = None
     if len(texts) > 1:
@@ -126,7 +126,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
                 audio_clips.append(audio)
             
             audio = torch.cat(audio_clips, dim=-1)
-            torchaudio.save(f'{outdir}/combined_{candidate}.wav', audio, 24000)
+            torchaudio.save(f'{outdir}/combined_{candidate}.wav', audio, tts.output_sample_rate)
 
             audio = audio.squeeze(0).cpu()
             audio_cache[f'combined_{candidate}.wav'] = {
@@ -143,7 +143,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
             output_voice = gen
     
     if output_voice is not None:
-        output_voice = (24000, output_voice.numpy())
+        output_voice = (tts.output_sample_rate, output_voice.numpy())
 
     info = {
         'text': text,
@@ -179,7 +179,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
         metadata.save()
  
     if sample_voice is not None:
-        sample_voice = (22050, sample_voice.squeeze().cpu().numpy())
+        sample_voice = (tts.input_sample_rate, sample_voice.squeeze().cpu().numpy())
  
     print(f"Generation took {info['time']} seconds, saved to '{outdir}'\n")
 
@@ -514,6 +514,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("Initializating TorToiSe...")
-    tts = TextToSpeech(minor_optimizations=not args.low_vram)
+    tts = TextToSpeech(
+        minor_optimizations=not args.low_vram,
+    )
 
     main()

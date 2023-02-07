@@ -97,7 +97,7 @@ def get_voices(extra_voice_dirs=[]):
     return voices
 
 
-def load_voice(voice, extra_voice_dirs=[], load_latents=True):
+def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050):
     if voice == 'random':
         return None, None
 
@@ -125,7 +125,7 @@ def load_voice(voice, extra_voice_dirs=[], load_latents=True):
     
     conds = []
     for cond_path in voices:
-        c = load_audio(cond_path, 22050)
+        c = load_audio(cond_path, sample_rate)
         conds.append(c)
     return conds, None
 
@@ -197,8 +197,8 @@ class TacotronSTFT(torch.nn.Module):
         return mel_output
 
 
-def wav_to_univnet_mel(wav, do_normalization=False, device='cuda'):
-    stft = TacotronSTFT(1024, 256, 1024, 100, 24000, 0, 12000)
+def wav_to_univnet_mel(wav, do_normalization=False, device='cuda', sample_rate=24000):
+    stft = TacotronSTFT(1024, 256, 1024, 100, sample_rate, 0, 12000)
     stft = stft.to(device)
     mel = stft.mel_spectrogram(wav)
     if do_normalization:

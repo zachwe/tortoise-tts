@@ -114,7 +114,7 @@ def load_discrete_vocoder_diffuser(trained_diffusion_steps=4000, desired_diffusi
                            conditioning_free=cond_free, conditioning_free_k=cond_free_k)
 
 
-def format_conditioning(clip, cond_length=132300, device='cuda'):
+def format_conditioning(clip, cond_length=132300, device='cuda', sampling_rate=22050):
     """
     Converts the given conditioning signal to a MEL spectrogram and clips it as expected by the models.
     """
@@ -124,7 +124,7 @@ def format_conditioning(clip, cond_length=132300, device='cuda'):
     elif gap > 0:
         rand_start = random.randint(0, gap)
         clip = clip[:, rand_start:rand_start + cond_length]
-    mel_clip = TorchMelSpectrogram()(clip.unsqueeze(0)).squeeze(0)
+    mel_clip = TorchMelSpectrogram(sampling_rate=sample_rate)(clip.unsqueeze(0)).squeeze(0)
     return mel_clip.unsqueeze(0).to(device)
 
 
@@ -158,12 +158,12 @@ def fix_autoregressive_output(codes, stop_token, complain=True):
     return codes
 
 
-def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True, progress=None, desc=None, sampler="P"):
+def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True, progress=None, desc=None, sampler="P", input_sample_rate=22050, output_sample_rate=24000):
     """
     Uses the specified diffusion model to convert discrete codes into a spectrogram.
     """
     with torch.no_grad():
-        output_seq_len = latents.shape[1] * 4 * 24000 // 22050  # This diffusion model converts from 22kHz spectrogram codes to a 24kHz spectrogram signal.
+        output_seq_len = latents.shape[1] * 4 * output_sample_rate // input_sample_rate  # This diffusion model converts from 22kHz spectrogram codes to a 24kHz spectrogram signal.
         output_shape = (latents.shape[0], 100, output_seq_len)
         precomputed_embeddings = diffusion_model.timestep_independent(latents, conditioning_latents, output_seq_len, False)
 
@@ -214,7 +214,7 @@ class TextToSpeech:
     Main entry point into Tortoise.
     """
 
-    def __init__(self, autoregressive_batch_size=None, models_dir=MODELS_DIR, enable_redaction=True, device=None, minor_optimizations=True):
+    def __init__(self, autoregressive_batch_size=None, models_dir=MODELS_DIR, enable_redaction=True, device=None, minor_optimizations=True, input_sample_rate=22050, output_sample_rate=24000):
         """
         Constructor
         :param autoregressive_batch_size: Specifies how many samples to generate per batch. Lower this if you are seeing
@@ -234,7 +234,10 @@ class TextToSpeech:
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+        self.input_sample_rate = input_sample_rate
+        self.output_sample_rate = output_sample_rate
         self.minor_optimizations = minor_optimizations
+
         self.models_dir = models_dir
         self.autoregressive_batch_size = pick_best_batch_size_for_gpu() if autoregressive_batch_size is None or autoregressive_batch_size == 0 else autoregressive_batch_size
         self.enable_redaction = enable_redaction
@@ -306,7 +309,7 @@ class TextToSpeech:
             if not isinstance(voice_samples, list):
                 voice_samples = [voice_samples]
             for vs in voice_samples:
-                auto_conds.append(format_conditioning(vs, device=self.device))
+                auto_conds.append(format_conditioning(vs, device=self.device, sampling_rate=self.input_sample_rate))
 
             auto_conds = torch.stack(auto_conds, dim=1)
             
@@ -315,7 +318,8 @@ class TextToSpeech:
             samples = [] # resample in its own pass to make things easier
             for sample in voice_samples:
                 # The diffuser operates at a sample rate of 24000 (except for the latent inputs)
-                samples.append(torchaudio.functional.resample(sample, 22050, 24000))
+                #samples.append(torchaudio.functional.resample(sample, 22050, 24000))
+                samples.append(torchaudio.functional.resample(sample, self.input_sample_rate, self.output_sample_rate))
 
             if chunk_size is None:
                 for sample in tqdm_override(samples, verbose=verbose and len(samples) > 1, progress=progress if len(samples) > 1 else None, desc="Calculating size of best fit..."):
@@ -582,7 +586,8 @@ class TextToSpeech:
                         break
 
                 mel = do_spectrogram_diffusion(self.diffusion, diffuser, latents, diffusion_conditioning,
-                                               temperature=diffusion_temperature, verbose=verbose, progress=progress, desc="Transforming autoregressive outputs into audio..", sampler=diffusion_sampler)
+                                               temperature=diffusion_temperature, verbose=verbose, progress=progress, desc="Transforming autoregressive outputs into audio..", sampler=diffusion_sampler,
+                                               input_sample_rate=self.input_sample_rate, output_sample_rate=self.output_sample_rate)
                 wav = self.vocoder.inference(mel)
                 wav_candidates.append(wav.cpu())
             
@@ -592,7 +597,7 @@ class TextToSpeech:
 
             def potentially_redact(clip, text):
                 if self.enable_redaction:
-                    return self.aligner.redact(clip.squeeze(1), text).unsqueeze(1)
+                    return self.aligner.redact(clip.squeeze(1), text, self.output_sample_rate).unsqueeze(1)
                 return clip
             wav_candidates = [potentially_redact(wav_candidate, text) for wav_candidate in wav_candidates]
 
