@@ -161,6 +161,8 @@ Below are settings that override the default launch arguments. Some of these req
 * `Public Share Gradio`: overrides `--share`. Tells Gradio to generate a public URL for the web UI
 * `Check for Updates`: checks for updates on page load and notifies in console. Only works if you pulled this repo from a gitea instance.
 * `Low VRAM`: disables optimizations in TorToiSe that increases VRAM consumption. Suggested if your GPU has under 6GiB.
+* `Embed Output Metadata`: enables embedding the settings and latents used to generate that audio clip inside that audio clip. Metadata is stored as a JSON string in the `lyrics` tag.
+* `Slimmer Computed Latents`: falls back to the original, 12.9KiB way of storing latents (without the extra bits required for using the CVVP model).
 * `Voice Latent Max Chunk Size`: during the voice latents calculation pass, this limits how large, in bytes, a chunk can be. Large values can run into VRAM OOM errors.
 * `Sample Batch Size`: sets the batch size when generating autoregressive samples. Bigger batches result in faster compute, at the cost of increased VRAM consumption. Leave to 0 to calculate a "best" fit.
 * `Concurrency Count`: how many Gradio events the queue can process at once. Leave this over 1 if you want to modify settings in the UI that updates other settings while generating audio clips.
@@ -207,6 +209,11 @@ This took a while to generate while I slept (and even managed to wake up before 
 I'm providing this even with its nasty warts to highlight the quirks: the weird gaps where there's a strange sound instead, the random pauses for "thought", etc.
 
 I think this also highlights how just combining your entire source sample gung-ho isn't a good idea, as he's not as high of a pitch in his delivery compared to how he usually is throughout most of the game (a sort of average between his two ranges). I can't gauge how well it did in reproducing it, since my ears are pretty much burnt out from listening to so many clips, but I believe he's pretty believable as a James Sunderland.
+
+Output (`Is that really you, Mary?`, Ultra Fast preset, settings and latents embedded)
+* https://files.catbox.moe/gy1jvz.wav
+
+This was just a quick test for an adjustable setting, but this one turned out really nice on the off chance. It's not the original delivery, and it definitely sounds robotic still, but it's on the Ultra Fast preset, as expected.
 
 ## Caveats (and Upsides)
 

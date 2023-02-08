@@ -36,7 +36,10 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
     
     if voice_samples is not None:
         sample_voice = voice_samples[0]
-        conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=True, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)
+        conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)
+        if len(conditioning_latents) == 4:
+            conditioning_latents = (conditioning_latents[0], conditioning_latents[1], conditioning_latents[2], None)
+            
         if voice != "microphone":
             torch.save(conditioning_latents, f'./tortoise/voices/{voice}/cond_latents.pth')
         voice_samples = None
@@ -177,13 +180,13 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
         with open(f'./tortoise/voices/{voice}/cond_latents.pth', 'rb') as f:
             info['latents'] = base64.b64encode(f.read()).decode("ascii")
 
+    if args.embed_output_metadata:
+        for path in audio_cache:
+            info['text'] = audio_cache[path]['text']
 
-    for path in audio_cache:
-        info['text'] = audio_cache[path]['text']
-
-        metadata = music_tag.load_file(f"{outdir}/{path}")
-        metadata['lyrics'] = json.dumps(info) 
-        metadata.save()
+            metadata = music_tag.load_file(f"{outdir}/{path}")
+            metadata['lyrics'] = json.dumps(info) 
+            metadata.save()
  
     if sample_voice is not None:
         sample_voice = (tts.input_sample_rate, sample_voice.squeeze().cpu().numpy())
@@ -318,12 +321,14 @@ def check_for_updates():
 def update_voices():
     return gr.Dropdown.update(choices=sorted(os.listdir("./tortoise/voices")) + ["microphone"])
 
-def export_exec_settings( share, check_for_updates, low_vram, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
+def export_exec_settings( share, check_for_updates, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
     args.share = share
     args.low_vram = low_vram
     args.check_for_updates = check_for_updates
     args.cond_latent_max_chunk_size = cond_latent_max_chunk_size
     args.sample_batch_size = sample_batch_size
+    args.embed_output_metadata = embed_output_metadata
+    args.latents_lean_and_mean = latents_lean_and_mean
     args.concurrency_count = concurrency_count
 
     settings = {
@@ -332,6 +337,8 @@ def export_exec_settings( share, check_for_updates, low_vram, cond_latent_max_ch
         'check-for-updates':args.check_for_updates,
         'cond-latent-max-chunk-size': args.cond_latent_max_chunk_size,
         'sample-batch-size': args.sample_batch_size,
+        'embed-output-metadata': args.embed_output_metadata,
+        'latents-lean-and-mean': args.latents_lean_and_mean,
         'concurrency-count': args.concurrency_count,
     }
 
@@ -438,6 +445,8 @@ def main():
                         exec_arg_share = gr.Checkbox(label="Public Share Gradio", value=args.share)
                         exec_check_for_updates = gr.Checkbox(label="Check For Updates", value=args.check_for_updates)
                         exec_arg_low_vram = gr.Checkbox(label="Low VRAM", value=args.low_vram)
+                        exec_arg_embed_output_metadata = gr.Checkbox(label="Embed Output Metadata", value=args.embed_output_metadata)
+                        exec_arg_latents_lean_and_mean = gr.Checkbox(label="Slimmer Computed Latents", value=args.latents_lean_and_mean)
                         exec_arg_cond_latent_max_chunk_size = gr.Number(label="Voice Latents Max Chunk Size", precision=0, value=args.cond_latent_max_chunk_size)
                         exec_arg_sample_batch_size = gr.Number(label="Sample Batch Size", precision=0, value=args.sample_batch_size)
                         exec_arg_concurrency_count = gr.Number(label="Concurrency Count", precision=0, value=args.concurrency_count)
@@ -448,7 +457,7 @@ def main():
 
                     check_updates_now = gr.Button(value="Check for Updates")
 
-                    exec_inputs = [exec_arg_share, exec_check_for_updates, exec_arg_low_vram, exec_arg_cond_latent_max_chunk_size, exec_arg_sample_batch_size, exec_arg_concurrency_count]
+                    exec_inputs = [exec_arg_share, exec_check_for_updates, exec_arg_low_vram, exec_arg_embed_output_metadata, exec_arg_latents_lean_and_mean, exec_arg_cond_latent_max_chunk_size, exec_arg_sample_batch_size, exec_arg_concurrency_count]
 
                     for i in exec_inputs:
                         i.change(
@@ -502,8 +511,10 @@ if __name__ == "__main__":
         'share': False,
         'check-for-updates': False,
         'low-vram': False,
-        'cond-latent-max-chunk-size': 1000000,
         'sample-batch-size': None,
+        'embed-output-metadata': True,
+        'latents-lean-and-mean': True,
+        'cond-latent-max-chunk-size': 1000000,
         'concurrency-count': 3,
     }
 
@@ -517,11 +528,15 @@ if __name__ == "__main__":
     parser.add_argument("--share", action='store_true', default=default_arguments['share'], help="Lets Gradio return a public URL to use anywhere")
     parser.add_argument("--check-for-updates", action='store_true', default=default_arguments['check-for-updates'], help="Checks for update on startup")
     parser.add_argument("--low-vram", action='store_true', default=default_arguments['low-vram'], help="Disables some optimizations that increases VRAM usage")
+    parser.add_argument("--no-embed-output-metadata", action='store_false', default=not default_arguments['embed-output-metadata'], help="Disables embedding output metadata into resulting WAV files for easily fetching its settings used with the web UI (data is stored in the lyrics metadata tag)")
+    parser.add_argument("--latents-lean-and-mean", action='store_true', default=default_arguments['latents-lean-and-mean'], help="Exports the bare essentials for latents.")
     parser.add_argument("--cond-latent-max-chunk-size", default=default_arguments['cond-latent-max-chunk-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
     parser.add_argument("--sample-batch-size", default=default_arguments['sample-batch-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
     parser.add_argument("--concurrency-count", type=int, default=default_arguments['concurrency-count'], help="How many Gradio events to process at once")
     args = parser.parse_args()
 
+    args.embed_output_metadata = not args.no_embed_output_metadata
+    
     if not args.share:
         def noop(function, return_value=None):
             def wrapped(*args, **kwargs):
