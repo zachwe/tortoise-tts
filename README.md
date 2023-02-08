@@ -14,6 +14,22 @@ I very much encourage (You) to use 11.AI while it's still viable to use. For the
 
 However, I also encourage your own experimentation with TorToiSe, as it's very, very promising, it just takes a little love and elbow grease.
 
+## Glossary
+
+To try and keep the terminology used here (somewhat) consistent and coherent, below are a list of terms, and their definitions (or at least, the way I'm using them):
+* `voice cloning`: synthesizing speech to accurately replicate a subject's voice.
+* `input clips` / `voice clips` / `audio input` / `voice samples` : the original voice source of the subject you're trying to clone.
+* `waveform`: the raw audio.
+* `sampling rate`: the bandwidth of a given waveform, represented as twice the frequency of the waveform it represents.
+* `voice latents` / `conditional latents` / `latents`: computated traits of a voice.
+* `autoregressive samples` (`samples` / `tokens`): the initial generation pass to output tokens, and (usually) the most computationally expensive. More samples = better "cloning".
+* `CLVP`: Contrastive Language-Voice Pretraining: an analog to CLIP, but for voices. After the autoregressive samples pass, those samples/tokens are compared against the CLVP to find the best candidates.
+* `CVVP`: Contrastive Voice-Voice Pretraining: a (deprecated) model that can be used weighted in junction with the CLVP.
+* `candidates`: results from the comparing against the CLVP/CVVP models. (Assumed to be) ordered from best to worst.
+* `diffusion decoder` / `vocoder`: these passes are responsible for encoding the tokens into a MEL spectrogram into a waveform.
+* `diffusion iterations`: how many passes to put into generating the output waveform. More iterations = better audio quality.
+* `diffusion sampler` / `sampler`: the sampling method used during the diffusion decoding pass, albeit a bit of a misnomer. Currently, only two samplers are implemented.
+
 ## Modifications
 
 My fork boasts the following additions, fixes, and optimizations:
@@ -31,7 +47,7 @@ My fork boasts the following additions, fixes, and optimizations:
 
 Outside of the very small prerequisites, everything needed to get TorToiSe working is included in the repo.
 
-For Windows users with an AMD GPU, tough luck, as ROCm drivers are not (easily) available for Windows, and requires inane patches with PyTorch. Consider using the [Colab notebook](https://colab.research.google.com/drive/1wVVqUPqwiDBUVeWWOUNglpGhU3hg_cbR?usp=sharing), or the [Hugging Face space](https://huggingface.co/spaces/mdnestor/tortoise), for `tortoise-tts`.
+For Windows users with an AMD GPU, ~~tough luck, as ROCm drivers are not (easily) available for Windows, and requires inane patches with PyTorch.~~ you're almost in luck, as hardware acceleration for any\* device is possible with PyTorch-DirectML. **!**NOTE**!**: DirectML support is currently being worked on, so for now, consider using the [Colab notebook](https://colab.research.google.com/drive/1wVVqUPqwiDBUVeWWOUNglpGhU3hg_cbR?usp=sharing), or the [Hugging Face space](https://huggingface.co/spaces/mdnestor/tortoise), for `tortoise-tts`. **!**NOTE**!**: these two do not use this repo's fork.
 
 ### Pre-Requirements
 
@@ -40,7 +56,7 @@ Windows:
 * Git (optional): https://git-scm.com/download/win
 
 Linux:
-* python3.x
+* python3.x (tested with 3.10)
 * git
 * ROCm for AMD, CUDA for NVIDIA
 
@@ -54,7 +70,9 @@ After installing Python, open the Start Menu and search for `Command Prompt`. Ty
 
 Paste `git clone https://git.ecker.tech/mrq/tortoise-tts` to download TorToiSe and additional scripts, then hit Enter. Inexperienced users can just download the repo as a ZIP, and extract.
 
-Afterwards, run `setup.bat` to automatically set things up.
+Afterwards, run the setup script, depending on your GPU, to automatically set things up.
+* AMD: `setup-directml.bat` (**!**NOTE**!**: DirectML support is currently being worked on)
+* NVIDIA: `setup-cuda.bat`
 
 If you've done everything right, you shouldn't have any errors.
 
@@ -69,9 +87,8 @@ chmod +x *.sh
 ```
 
 Then, depending on your GPU:
-`./setup-rocm.sh # if AMD`
-
-`./setup-cuda.sh # if NVIDIA`
+* AMD: `./setup-rocm.sh`
+* NVIDIA: `./setup-cuda.sh`
 
 And you should be done!
 
@@ -112,7 +129,7 @@ After preparing your clips as WAV files at a sample rate of 22050 Hz, open up th
 
 Now you're ready to generate clips. With the command prompt still open, simply enter `start.bat` (or `start.sh`), and wait for it to print out a URL to open in your browser, something like `http://127.0.0.1:7860`.
 
-If you're looking to access your copy of TorToiSe from outside your local network, pass `--share` into the command (for example, `python app.py --share`). You'll get a temporary gradio link to use.
+If you're looking to access your copy of TorToiSe from outside your local network, tick the `Public Share Gradio` button in the `Settings` tab, then restart.
 
 ### Generate
 
@@ -129,8 +146,11 @@ You'll be presented with a bunch of options in the default `Generate` tab, but d
 * `Preset`: shortcut values for sample count and iteration steps. Clicking a preset will update its corresponding values. Higher presets result in better quality at the cost of computation time.
 * `Samples`: analogous to samples in image generation. More samples = better resemblance / clone quality, at the cost of performance. This strictly affects clone quality.
 * `Iterations`: influences audio sound quality in the final output. More iterations = higher quality sound. This step is relatively cheap, so do not be discouraged from increasing this. This strictly affects quality in the actual sound.
-* `Temperature`: how much randomness to introduce to the generated samples. Lower values = better resemblance to the source samples, but some temperature is still required for great output. This value is very inconsistent and entirely depends on the input voice. In other words, some voices will be receptive to playing with this value, while others won't make much of a difference.
+* `Temperature`: how much randomness to introduce to the generated samples. Lower values = better resemblance to the source samples, but some temperature is still required for great output.
+	- **!**NOTE**!**: This value is very inconsistent and entirely depends on the input voice. In other words, some voices will be receptive to playing with this value, while others won't make much of a difference.
+	- **!**NOTE**!**: some voices will be very receptive to this, where it speaks slowly at low temperatures, but nudging it a hair and it speaks too fast.
 * `Pause Size`: Governs how large pauses are at the end of a clip (in token size, not seconds). Increase this if your output gets cut off at the end.
+	- **!**NOTE**!**: too large of a pause size can lead to unexpected behavior.
 * `Diffusion Sampler`: sampler method during the diffusion pass. Currently, only `P` and `DDIM` are added, but does not seem to offer any substantial differences in my short tests.
 	`P` refers to the default, vanilla sampling method in `diffusion.py`.
 	To reiterate, this ***only*** is useful for the diffusion decoding path, after the autoregressive outputs are generated.
@@ -213,20 +233,19 @@ I think this also highlights how just combining your entire source sample gung-h
 Output (`Is that really you, Mary?`, Ultra Fast preset, settings and latents embedded)
 * https://files.catbox.moe/gy1jvz.wav
 
-This was just a quick test for an adjustable setting, but this one turned out really nice on the off chance. It's not the original delivery, and it definitely sounds robotic still, but it's on the Ultra Fast preset, as expected.
+This was just a quick test for an adjustable setting, but this one turned out really nice (for being a quick test) on the off chance. It's not the original delivery, and it definitely sounds robotic still, but it's on the Ultra Fast preset, as expected.
 
 ## Caveats (and Upsides)
 
 To me, I find a few problems with TorToiSe over 11.AI:
 * computation time is quite an issue. Despite Stable Diffusion proving to be adequate on my 2060, TorToiSe takes quite some time with modest settings.
-	- If it did bother me (or bothers you), I would just rent out a Paperspace instance.
-	- There's still new gains to be had in diminishing the tax on computing.
+	- However, on my 6800XT, performance was drastically uplifted due to having more VRAM for larger batch sizes (at the cost of Krashing).
 * reproducability in a voice depends on the "compatability" with the model TorToiSe was trained on.
 	- However, this also appears to be similar to 11.AI, where it was mostly trained on audiobook readings.
 * the lack of an obvious analog to the "stability" and "similarity" sliders kind of sucks, but it's not the end of the world.
 	However, the `temperature` option seems to prove to be a proper analog to either of these.
 
-However, I can look past these as TorToiSe offers, in comparison to 11.AI:
+Although, I can look past these as TorToiSe offers, in comparison to 11.AI:
 * the "speaking too fast" issue does not exist with TorToiSe. I don't need to fight with it by pretending I'm a Gaia user in the early 2000s by sprinkling ellipses.
 * the overall delivery seems very natural, sometimes small, dramatic pauses gets added at the legitimately most convenient moments, and the inhales tend to be more natural. Many of vocaroos from 11.AI where it just does not seem properly delivered.
 * being able to run it locally means I do not have to worry about some Polack seeing me use the "dick" word.

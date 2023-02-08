@@ -208,6 +208,39 @@ def pick_best_batch_size_for_gpu():
             return 4
     return 1
 
+def has_dml():
+    return False
+
+    # currently getting an error thrown during the autoregressive pass
+    # File "X:\programs\tortoise-tts\tortoise-venv\lib\site-packages\transformers\generation_utils.py", line 1905, in sample
+    # unfinished_sequences = input_ids.new(input_ids.shape[0]).fill_(1)
+    # RuntimeError: new(): expected key in DispatchKeySet(CPU, CUDA, HIP, XLA, MPS, IPU, XPU, HPU, Lazy, Meta) but got: PrivateUse1
+    # so I'll need to look into it more
+
+    """
+    import importlib
+    loader = importlib.find_loader('torch_directml')
+    return loader is not None
+    """
+
+def get_optimal_device():
+    name = 'cpu'
+
+    if has_dml():
+        name = 'dml'
+    elif torch.cuda.is_available():
+        name = 'cuda'
+
+    if name == 'cpu':
+        print("No hardware acceleration is available, falling back to CPU...")    
+    else:
+        print(f"Hardware acceleration found: {name}")
+
+    if name == "dml":
+        import torch_directml
+        return torch_directml.device()
+
+    return torch.device(name)
 
 class TextToSpeech:
     """
@@ -225,14 +258,9 @@ class TextToSpeech:
                                  (but are still rendered by the model). This can be used for prompt engineering.
                                  Default is true.
         :param device: Device to use when running the model. If omitted, the device will be automatically chosen.
-        """
-        if not torch.cuda.is_available():
-            print("CUDA is NOT available for use.")
-            # minor_optimizations = False
-            # enable_redaction = False
-
+        """ 
         if device is None:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            device = get_optimal_device()
 
         self.input_sample_rate = input_sample_rate
         self.output_sample_rate = output_sample_rate
