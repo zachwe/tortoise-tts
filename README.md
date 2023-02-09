@@ -1,12 +1,8 @@
 # AI Voice Cloning for Retards and Savants
 
-This [rentry](https://rentry.org/AI-Voice-Cloning/) aims to serve as both a foolproof guide for setting up AI voice cloning tools for legitimate, local use on Windows (with an Nvidia GPU), as well as a stepping stone for anons that genuinely want to play around with [TorToiSe](https://github.com/neonbjb/tortoise-tts).
+This [rentry](https://rentry.org/AI-Voice-Cloning/) aims to serve as both a foolproof guide for setting up AI voice cloning tools for legitimate, local use on Windows, as well as a stepping stone for anons that genuinely want to play around with [TorToiSe](https://github.com/neonbjb/tortoise-tts).
 
 Similar to my own findings for Stable Diffusion image generation, this rentry may appear a little disheveled as I note my new findings with TorToiSe. Please keep this in mind if the guide seems to shift a bit or sound confusing.
-
->\>B-but what about the colab notebook/hugging space instance??
-
-I link those a bit later on as alternatives for Windows+AMD users. You're free to skip the installation section and jump after that.
 
 >\>Ugh... why bother when I can just abuse 11.AI?
 
@@ -39,15 +35,14 @@ My fork boasts the following additions, fixes, and optimizations:
 	- additionally, regenerating them if the script detects they're out of date
 * uses the entire audio sample instead of the first four seconds of each sound file for better reproducing
 * activated unused DDIM sampler
-* ease of setup for the most inexperienced Windows users
 * use of some optimizations like `kv_cache`ing for the autoregression sample pass, and keeping data on GPU 
+* compatability with DirectML
+* easy install scripts
 * and more!
 
 ## Installing
 
 Outside of the very small prerequisites, everything needed to get TorToiSe working is included in the repo.
-
-For Windows users with an AMD GPU, ~~tough luck, as ROCm drivers are not (easily) available for Windows, and requires inane patches with PyTorch.~~ you're almost in luck, as hardware acceleration for any\* device is possible with PyTorch-DirectML. **!**NOTE**!**: DirectML support is currently being worked on, so for now, consider using the [Colab notebook](https://colab.research.google.com/drive/1wVVqUPqwiDBUVeWWOUNglpGhU3hg_cbR?usp=sharing), or the [Hugging Face space](https://huggingface.co/spaces/mdnestor/tortoise), for `tortoise-tts`. **!**NOTE**!**: these two do not use this repo's fork.
 
 ### Pre-Requirements
 
@@ -71,16 +66,22 @@ After installing Python, open the Start Menu and search for `Command Prompt`. Ty
 Paste `git clone https://git.ecker.tech/mrq/tortoise-tts` to download TorToiSe and additional scripts, then hit Enter. Inexperienced users can just download the repo as a ZIP, and extract.
 
 Afterwards, run the setup script, depending on your GPU, to automatically set things up.
-* ~~AMD: `setup-directml.bat`~~
+* AMD: `setup-directml.bat`
 * NVIDIA: `setup-cuda.bat`
 
 If you've done everything right, you shouldn't have any errors.
 
 ##### Note on DirectML Support
 
-At first, I thought it was just one simple problem that needed to be fixed, but as I picked at it and did a new install (having CUDA enabled too caused some things to silently "work" despite using DML instead), more problems cropped up, exposing that PyTorch-DirectML isn't quite ready yet.
+PyTorch-DirectML is very, very experimental and is still not production quality. There's some headaches with the need for hairy kludgy patches.
 
-I doubt even if I sucked off a wizard, there'd still be other problems cropping up.
+These patches rely on transfering the tensor between the GPU and CPU as a hotfix, so performance is definitely harmed.
+
+Both the conditional latent computation and the vocoder pass have to be done on the CPU entirely because of some quirks with DirectML.
+
+On my 6800XT, VRAM usage climbs almost the entire 16GiB, so be wary if you OOM somehow. Low VRAM flags may NOT have any additional impact from the constant copying anyways.
+
+For AMD users, I still might suggest using Linux+ROCm as it's (relatively) headache free, but I had stability problems.
 
 #### Linux
 

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch import autocast
 
 from tortoise.models.arch_util import normalization, AttentionBlock
-
+from tortoise.utils.device import get_device_name
 
 def is_latent(t):
     return t.dtype == torch.float
@@ -141,7 +141,7 @@ class DiffusionTts(nn.Module):
             in_tokens=8193,
             out_channels=200,  # mean and variance
             dropout=0,
-            use_fp16=True,
+            use_fp16=False,
             num_heads=16,
             # Parameters for regularization.
             layer_drop=.1,
@@ -302,7 +302,8 @@ class DiffusionTts(nn.Module):
                 unused_params.extend(list(lyr.parameters()))
             else:
                 # First and last blocks will have autocast disabled for improved precision.
-                with autocast(x.device.type, enabled=self.enable_fp16 and i != 0):
+                # x.device.type
+                with autocast(device_type='cuda', enabled=self.enable_fp16 and i != 0):
                     x = lyr(x, time_emb)
 
         x = x.float()

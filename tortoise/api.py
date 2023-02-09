@@ -176,7 +176,10 @@ def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_la
                                       model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
                                      verbose=verbose, progress=progress, desc=desc)
 
-        return denormalize_tacotron_mel(mel)[:,:,:output_seq_len]
+        mel = denormalize_tacotron_mel(mel)[:,:,:output_seq_len]
+        if get_device_name() == "dml":
+            mel = mel.cpu()
+        return mel
 
 
 def classify_audio_clip(clip):
@@ -449,6 +452,9 @@ class TextToSpeech:
         :return: Generated audio clip(s) as a torch tensor. Shape 1,S if k=1 else, (k,1,S) where S is the sample length.
                  Sample rate is 24kHz.
         """
+        if get_device_name() == "dml":
+            half_p = False
+
         self.diffusion.enable_fp16 = half_p
         deterministic_seed = self.deterministic_state(seed=use_deterministic_seed)
 
@@ -477,6 +483,8 @@ class TextToSpeech:
         with torch.no_grad():
             samples = []
             num_batches = num_autoregressive_samples // self.autoregressive_batch_size
+            if num_autoregressive_samples < self.autoregressive_batch_size:
+                num_autoregressive_samples = 1
             stop_mel_token = self.autoregressive.stop_mel_token
             calm_token = 83  # This is the token for coding silence, which is fixed in place with "fix_autoregressive_output"
             
@@ -553,16 +561,31 @@ class TextToSpeech:
             if not self.minor_optimizations:
                 self.autoregressive = self.autoregressive.to(self.device)
 
+            if get_device_name() == "dml":
+                text_tokens = text_tokens.cpu()
+                best_results = best_results.cpu()
+                auto_conditioning = auto_conditioning.cpu()
+                self.autoregressive = self.autoregressive.cpu()
+
             best_latents = self.autoregressive(auto_conditioning.repeat(k, 1), text_tokens.repeat(k, 1),
                                                torch.tensor([text_tokens.shape[-1]], device=text_tokens.device), best_results,
                                                torch.tensor([best_results.shape[-1]*self.autoregressive.mel_length_compression], device=text_tokens.device),
                                                return_latent=True, clip_inputs=False)
+            
+            if get_device_name() == "dml":
+                self.autoregressive = self.autoregressive.to(self.device)
+                best_results = best_results.to(self.device)
+                best_latents = best_latents.to(self.device)
             
             if not self.minor_optimizations:
                 self.autoregressive = self.autoregressive.cpu()
                 self.diffusion = self.diffusion.to(self.device)
                 self.vocoder = self.vocoder.to(self.device)
             
+            if get_device_name() == "dml":
+                self.vocoder = self.vocoder.cpu()
+            
+            del text_tokens
             del auto_conditioning
 
             wav_candidates = []
@@ -584,6 +607,7 @@ class TextToSpeech:
                 mel = do_spectrogram_diffusion(self.diffusion, diffuser, latents, diffusion_conditioning,
                                                temperature=diffusion_temperature, verbose=verbose, progress=progress, desc="Transforming autoregressive outputs into audio..", sampler=diffusion_sampler,
                                                input_sample_rate=self.input_sample_rate, output_sample_rate=self.output_sample_rate)
+
                 wav = self.vocoder.inference(mel)
                 wav_candidates.append(wav.cpu())
             

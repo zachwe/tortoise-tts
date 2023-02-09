@@ -1,4 +1,4 @@
 call .\tortoise-venv\Scripts\activate.bat
-python .\app.py
+accelerate launch --num_cpu_threads_per_process=6 app.py
 deactivate
 pause
