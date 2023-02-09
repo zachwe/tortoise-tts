@@ -185,7 +185,10 @@ If you want to reuse its generation settings, simply click "Copy Settings".
 This tab (should) hold a bunch of other settings, from tunables that shouldn't be tampered with, to settings pertaining to the web UI itself.
 
 Below are settings that override the default launch arguments. Some of these require restarting to work.
-* `Public Share Gradio`: overrides `--share`. Tells Gradio to generate a public URL for the web UI
+* `Listen`: sets the hostname, port, and/or path for the web UI to listen on.
+	- For example, `0.0.0.0:80` will have the web UI accept all connections on port 80
+	- For example, `10.0.0.1:8008/gradio` will have the web UI only accept connections through `10.0.0.1`, at the path `/gradio`
+* `Public Share Gradio`: Tells Gradio to generate a public URL for the web UI. Ignored if specifying a path through the `Listen` setting.
 * `Check for Updates`: checks for updates on page load and notifies in console. Only works if you pulled this repo from a gitea instance.
 * `Low VRAM`: disables optimizations in TorToiSe that increases VRAM consumption. Suggested if your GPU has under 6GiB.
 * `Embed Output Metadata`: enables embedding the settings and latents used to generate that audio clip inside that audio clip. Metadata is stored as a JSON string in the `lyrics` tag.

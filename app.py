@@ -322,9 +322,9 @@ def check_for_updates():
 def update_voices():
     return gr.Dropdown.update(choices=sorted(os.listdir("./tortoise/voices")) + ["microphone"])
 
-def export_exec_settings( share, listen_path, check_for_updates, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
+def export_exec_settings( share, listen, check_for_updates, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
     args.share = share
-    args.listen_path = listen_path
+    args.listen = listen
     args.low_vram = low_vram
     args.check_for_updates = check_for_updates
     args.cond_latent_max_chunk_size = cond_latent_max_chunk_size
@@ -335,7 +335,7 @@ def export_exec_settings( share, listen_path, check_for_updates, low_vram, embed
 
     settings = {
         'share': args.share,
-        'listen-path': args.listen_path,
+        'listen': args.listen,
         'low-vram':args.low_vram,
         'check-for-updates':args.check_for_updates,
         'cond-latent-max-chunk-size': args.cond_latent_max_chunk_size,
@@ -351,9 +351,7 @@ def export_exec_settings( share, listen_path, check_for_updates, low_vram, embed
 def setup_args():
     default_arguments = {
         'share': False,
-        'listen-path': None,
-        'listen-host': '127.0.0.1',
-        'listen-port': 8000,
+        'listen': None,
         'check-for-updates': False,
         'low-vram': False,
         'sample-batch-size': None,
@@ -371,9 +369,7 @@ def setup_args():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--share", action='store_true', default=default_arguments['share'], help="Lets Gradio return a public URL to use anywhere")
-    parser.add_argument("--listen-path", default=default_arguments['listen-path'], help="Path for Gradio to listen on")
-    parser.add_argument("--listen-host", default=default_arguments['listen-host'], help="Host for Gradio to listen on")
-    parser.add_argument("--listen-port", default=default_arguments['listen-port'], type=int, help="Post for Gradio to listen on")
+    parser.add_argument("--listen", default=default_arguments['listen'], help="Path for Gradio to listen on")
     parser.add_argument("--check-for-updates", action='store_true', default=default_arguments['check-for-updates'], help="Checks for update on startup")
     parser.add_argument("--low-vram", action='store_true', default=default_arguments['low-vram'], help="Disables some optimizations that increases VRAM usage")
     parser.add_argument("--no-embed-output-metadata", action='store_false', default=not default_arguments['embed-output-metadata'], help="Disables embedding output metadata into resulting WAV files for easily fetching its settings used with the web UI (data is stored in the lyrics metadata tag)")
@@ -384,6 +380,19 @@ def setup_args():
     args = parser.parse_args()
 
     args.embed_output_metadata = not args.no_embed_output_metadata
+
+    args.listen_host = None
+    args.listen_port = None
+    args.listen_path = None
+    if args.listen is not None:
+        match = re.findall(r"^(?:(.+?):(\d+))?(\/.+?)?$", args.listen)[0]
+
+        args.listen_host = match[0] if match[0] != "" else "127.0.0.1"
+        args.listen_port = match[1] if match[1] != "" else 8000
+        args.listen_path = match[2] if match[2] != "" else "/"
+
+    if args.listen_port is not None:
+        args.listen_port = int(args.listen_port)
     
     return args
 
@@ -502,7 +511,7 @@ def setup_gradio():
             with gr.Row():
                 with gr.Column():
                     with gr.Box():
-                        exec_arg_gradio_path = gr.Textbox(label="Gradio Path", value=args.listen_path, placeholder="/")
+                        exec_arg_listen = gr.Textbox(label="Listen", value=args.listen, placeholder="127.0.0.1:7860/")
                         exec_arg_share = gr.Checkbox(label="Public Share Gradio", value=args.share)
                         exec_check_for_updates = gr.Checkbox(label="Check For Updates", value=args.check_for_updates)
                         exec_arg_low_vram = gr.Checkbox(label="Low VRAM", value=args.low_vram)
@@ -518,7 +527,7 @@ def setup_gradio():
 
                     check_updates_now = gr.Button(value="Check for Updates")
 
-                    exec_inputs = [exec_arg_share, exec_arg_gradio_path, exec_check_for_updates, exec_arg_low_vram, exec_arg_embed_output_metadata, exec_arg_latents_lean_and_mean, exec_arg_cond_latent_max_chunk_size, exec_arg_sample_batch_size, exec_arg_concurrency_count]
+                    exec_inputs = [exec_arg_share, exec_arg_listen, exec_check_for_updates, exec_arg_low_vram, exec_arg_embed_output_metadata, exec_arg_latents_lean_and_mean, exec_arg_cond_latent_max_chunk_size, exec_arg_sample_batch_size, exec_arg_concurrency_count]
 
                     for i in exec_inputs:
                         i.change(
@@ -577,7 +586,7 @@ if __name__ == "__main__":
         uvicorn.run("app:app", host=args.listen_host, port=args.listen_port)
     else:
         webui = setup_gradio()
-        webui.launch(share=args.share, prevent_thread_lock=True)
+        webui.launch(share=args.share, prevent_thread_lock=True, server_name=args.listen_host, server_port=args.listen_port)
         tts = setup_tortoise()
 
         webui.block_thread()
