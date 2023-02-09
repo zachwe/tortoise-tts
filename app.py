@@ -576,7 +576,8 @@ if __name__ == "__main__":
         import uvicorn
         uvicorn.run("app:app", host=args.listen_host, port=args.listen_port)
     else:
-        webui = setup_gradio().launch(share=args.share, prevent_thread_lock=True)
+        webui = setup_gradio()
+        webui.launch(share=args.share, prevent_thread_lock=True)
         tts = setup_tortoise()
 
         webui.block_thread()
