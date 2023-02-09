@@ -71,10 +71,16 @@ After installing Python, open the Start Menu and search for `Command Prompt`. Ty
 Paste `git clone https://git.ecker.tech/mrq/tortoise-tts` to download TorToiSe and additional scripts, then hit Enter. Inexperienced users can just download the repo as a ZIP, and extract.
 
 Afterwards, run the setup script, depending on your GPU, to automatically set things up.
-* AMD: `setup-directml.bat` (**!**NOTE**!**: DirectML support is currently being worked on)
+* ~~AMD: `setup-directml.bat`~~
 * NVIDIA: `setup-cuda.bat`
 
 If you've done everything right, you shouldn't have any errors.
+
+##### Note on DirectML Support
+
+At first, I thought it was just one simple problem that needed to be fixed, but as I picked at it and did a new install (having CUDA enabled too caused some things to silently "work" despite using DML instead), more problems cropped up, exposing that PyTorch-DirectML isn't quite ready yet.
+
+I doubt even if I sucked off a wizard, there'd still be other problems cropping up.
 
 #### Linux
 

@@ -5,7 +5,7 @@ import torchaudio
 from transformers import Wav2Vec2ForCTC, Wav2Vec2FeatureExtractor, Wav2Vec2CTCTokenizer, Wav2Vec2Processor
 
 from tortoise.utils.audio import load_audio
-
+from tortoise.utils.device import get_device
 
 def max_alignment(s1, s2, skip_character='~', record=None):
     """
@@ -51,7 +51,7 @@ class Wav2VecAlignment:
     """
     def __init__(self, device=None):
         if device is None:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            device = torch.device(get_device())
 
         self.model = Wav2Vec2ForCTC.from_pretrained("jbetker/wav2vec2-large-robust-ft-libritts-voxpopuli").cpu()
         self.feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(f"facebook/wav2vec2-large-960h")

@@ -30,6 +30,8 @@ from tortoise.utils.diffusion import SpacedDiffusion, space_timesteps, get_named
 from tortoise.utils.tokenizer import VoiceBpeTokenizer
 from tortoise.utils.wav2vec_alignment import Wav2VecAlignment
 
+from tortoise.utils.device import get_device, get_device_name, get_device_batch_size
+
 pbar = None
 
 MODELS_DIR = os.environ.get('TORTOISE_MODELS_DIR')
@@ -191,57 +193,6 @@ def classify_audio_clip(clip):
     results = F.softmax(classifier(clip), dim=-1)
     return results[0][0]
 
-
-def pick_best_batch_size_for_gpu():
-    """
-    Tries to pick a batch size that will fit in your GPU. These sizes aren't guaranteed to work, but they should give
-    you a good shot.
-    """
-    if torch.cuda.is_available():
-        _, available = torch.cuda.mem_get_info()
-        availableGb = available / (1024 ** 3)
-        if availableGb > 14:
-            return 16
-        elif availableGb > 10:
-            return 8
-        elif availableGb > 7:
-            return 4
-    return 1
-
-def has_dml():
-    return False
-
-    # currently getting an error thrown during the autoregressive pass
-    # File "X:\programs\tortoise-tts\tortoise-venv\lib\site-packages\transformers\generation_utils.py", line 1905, in sample
-    # unfinished_sequences = input_ids.new(input_ids.shape[0]).fill_(1)
-    # RuntimeError: new(): expected key in DispatchKeySet(CPU, CUDA, HIP, XLA, MPS, IPU, XPU, HPU, Lazy, Meta) but got: PrivateUse1
-    # so I'll need to look into it more
-
-    """
-    import importlib
-    loader = importlib.find_loader('torch_directml')
-    return loader is not None
-    """
-
-def get_optimal_device():
-    name = 'cpu'
-
-    if has_dml():
-        name = 'dml'
-    elif torch.cuda.is_available():
-        name = 'cuda'
-
-    if name == 'cpu':
-        print("No hardware acceleration is available, falling back to CPU...")    
-    else:
-        print(f"Hardware acceleration found: {name}")
-
-    if name == "dml":
-        import torch_directml
-        return torch_directml.device()
-
-    return torch.device(name)
-
 class TextToSpeech:
     """
     Main entry point into Tortoise.
@@ -260,18 +211,18 @@ class TextToSpeech:
         :param device: Device to use when running the model. If omitted, the device will be automatically chosen.
         """ 
         if device is None:
-            device = get_optimal_device()
+            device = get_device(verbose=True)
 
         self.input_sample_rate = input_sample_rate
         self.output_sample_rate = output_sample_rate
         self.minor_optimizations = minor_optimizations
 
         self.models_dir = models_dir
-        self.autoregressive_batch_size = pick_best_batch_size_for_gpu() if autoregressive_batch_size is None or autoregressive_batch_size == 0 else autoregressive_batch_size
+        self.autoregressive_batch_size = get_device_batch_size() if autoregressive_batch_size is None or autoregressive_batch_size == 0 else autoregressive_batch_size
         self.enable_redaction = enable_redaction
         self.device = device
         if self.enable_redaction:
-            self.aligner = Wav2VecAlignment(device=self.device)
+            self.aligner = Wav2VecAlignment(device=None)
 
         self.tokenizer = VoiceBpeTokenizer()
 
@@ -331,13 +282,15 @@ class TextToSpeech:
         :param voice_samples: List of 2 or more ~10 second reference clips, which should be torch tensors containing 22.05kHz waveform data.
         """
         with torch.no_grad():
-            voice_samples = [v.to(self.device) for v in voice_samples]
+            device = 'cpu' if get_device_name() == "dml" else self.device
+
+            voice_samples = [v.to(device) for v in voice_samples]
 
             auto_conds = []
             if not isinstance(voice_samples, list):
                 voice_samples = [voice_samples]
             for vs in voice_samples:
-                auto_conds.append(format_conditioning(vs, device=self.device, sampling_rate=self.input_sample_rate))
+                auto_conds.append(format_conditioning(vs, device=device, sampling_rate=self.input_sample_rate))
 
             auto_conds = torch.stack(auto_conds, dim=1)
             
@@ -372,20 +325,30 @@ class TextToSpeech:
                 
             for chunk in tqdm_override(chunks, verbose=verbose, progress=progress, desc="Computing conditioning latents..."):
                 chunk = pad_or_truncate(chunk, chunk_size)
-                cond_mel = wav_to_univnet_mel(chunk.to(self.device), do_normalization=False, device=self.device)
+                cond_mel = wav_to_univnet_mel(chunk.to(device), do_normalization=False, device=device)
                 diffusion_conds.append(cond_mel)
 
             diffusion_conds = torch.stack(diffusion_conds, dim=1)
 
+            # required since DML implementation screams about falling back to CPU, but crashes anyways
             if self.minor_optimizations:
-                auto_latent = self.autoregressive.get_conditioning(auto_conds)
-                diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
+                if get_device_name() == "dml":
+                    self.autoregressive = self.autoregressive.cpu()
+                    auto_latent = self.autoregressive.get_conditioning(auto_conds)
+                    self.autoregressive = self.autoregressive.to(self.device)
+
+                    self.diffusion = self.diffusion.cpu()
+                    diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
+                    self.diffusion = self.diffusion.to(self.device)
+                else:
+                    auto_latent = self.autoregressive.get_conditioning(auto_conds)
+                    diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
             else:
-                self.autoregressive = self.autoregressive.to(self.device)
+                self.autoregressive = self.autoregressive.to(device)
                 auto_latent = self.autoregressive.get_conditioning(auto_conds)
                 self.autoregressive = self.autoregressive.cpu()
 
-                self.diffusion = self.diffusion.to(self.device)
+                self.diffusion = self.diffusion.to(device)
                 diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
                 self.diffusion = self.diffusion.cpu()
 
@@ -509,7 +472,7 @@ class TextToSpeech:
 
         diffuser = load_discrete_vocoder_diffuser(desired_diffusion_steps=diffusion_iterations, cond_free=cond_free, cond_free_k=cond_free_k)
 
-        self.autoregressive_batch_size = pick_best_batch_size_for_gpu() if sample_batch_size is None or sample_batch_size == 0 else sample_batch_size
+        self.autoregressive_batch_size = get_device_batch_size() if sample_batch_size is None or sample_batch_size == 0 else sample_batch_size
 
         with torch.no_grad():
             samples = []

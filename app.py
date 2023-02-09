@@ -33,7 +33,7 @@ def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidate
     else:
         progress(0, desc="Loading voice...")
         voice_samples, conditioning_latents = load_voice(voice)
-    
+
     if voice_samples is not None:
         sample_voice = voice_samples[0]
         conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)

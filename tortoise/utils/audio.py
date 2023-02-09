@@ -97,7 +97,7 @@ def get_voices(extra_voice_dirs=[]):
     return voices
 
 
-def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050):
+def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050, device='cpu'):
     if voice == 'random':
         return None, None
 
@@ -120,7 +120,7 @@ def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050)
     if load_latents and latent is not None:
         if os.path.getmtime(latent) > mtime:
             print(f"Reading from latent: {latent}")
-            return None, torch.load(latent)
+            return None, torch.load(latent, map_location=device)
         print(f"Latent file out of date: {latent}")
     
     conds = []
@@ -197,7 +197,7 @@ class TacotronSTFT(torch.nn.Module):
         return mel_output
 
 
-def wav_to_univnet_mel(wav, do_normalization=False, device='cuda', sample_rate=24000):
+def wav_to_univnet_mel(wav, do_normalization=False, device='cpu', sample_rate=24000):
     stft = TacotronSTFT(1024, 256, 1024, 100, sample_rate, 0, 12000)
     stft = stft.to(device)
     mel = stft.mel_spectrogram(wav)
