@@ -1,6 +1,8 @@
 import os
 import random
 import uuid
+import gc
+
 from time import time
 from urllib import request
 
