@@ -236,7 +236,7 @@ def read_generate_settings(file, save_latents=True):
         del j['latents']
 
     if latents and save_latents:
-        outdir='/voices/.temp/'
+        outdir='./voices/.temp/'
         os.makedirs(outdir, exist_ok=True)
         with open(f'{outdir}/cond_latents.pth', 'wb') as f:
             f.write(latents)
