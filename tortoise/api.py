@@ -626,6 +626,8 @@ class TextToSpeech:
             else:
                 res = wav_candidates[0]
 
+            gc.collect()
+
             if return_deterministic_state:
                 return res, (deterministic_seed, text, voice_samples, conditioning_latents)
             else:

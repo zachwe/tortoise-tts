@@ -322,11 +322,12 @@ def check_for_updates():
 def update_voices():
     return gr.Dropdown.update(choices=sorted(os.listdir("./tortoise/voices")) + ["microphone"])
 
-def export_exec_settings( share, listen, check_for_updates, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
+def export_exec_settings( share, listen, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
     args.share = share
     args.listen = listen
     args.low_vram = low_vram
     args.check_for_updates = check_for_updates
+    args.models_from_local_only = models_from_local_only
     args.cond_latent_max_chunk_size = cond_latent_max_chunk_size
     args.sample_batch_size = sample_batch_size
     args.embed_output_metadata = embed_output_metadata
@@ -338,6 +339,7 @@ def export_exec_settings( share, listen, check_for_updates, low_vram, embed_outp
         'listen': args.listen,
         'low-vram':args.low_vram,
         'check-for-updates':args.check_for_updates,
+        'models-from-local-only':args.models_from_local_only,
         'cond-latent-max-chunk-size': args.cond_latent_max_chunk_size,
         'sample-batch-size': args.sample_batch_size,
         'embed-output-metadata': args.embed_output_metadata,
@@ -353,6 +355,7 @@ def setup_args():
         'share': False,
         'listen': None,
         'check-for-updates': False,
+        'models-from-local-only': False,
         'low-vram': False,
         'sample-batch-size': None,
         'embed-output-metadata': True,
@@ -371,6 +374,7 @@ def setup_args():
     parser.add_argument("--share", action='store_true', default=default_arguments['share'], help="Lets Gradio return a public URL to use anywhere")
     parser.add_argument("--listen", default=default_arguments['listen'], help="Path for Gradio to listen on")
     parser.add_argument("--check-for-updates", action='store_true', default=default_arguments['check-for-updates'], help="Checks for update on startup")
+    parser.add_argument("--models-from-local-only", action='store_true', default=default_arguments['models-from-local-only'], help="Only loads models from disk, does not check for updates for models")
     parser.add_argument("--low-vram", action='store_true', default=default_arguments['low-vram'], help="Disables some optimizations that increases VRAM usage")
     parser.add_argument("--no-embed-output-metadata", action='store_false', default=not default_arguments['embed-output-metadata'], help="Disables embedding output metadata into resulting WAV files for easily fetching its settings used with the web UI (data is stored in the lyrics metadata tag)")
     parser.add_argument("--latents-lean-and-mean", action='store_true', default=default_arguments['latents-lean-and-mean'], help="Exports the bare essentials for latents.")
@@ -415,6 +419,9 @@ def setup_gradio():
         gradio.utils.error_analytics = noop(gradio.utils.error_analytics)
         gradio.utils.log_feature_analytics = noop(gradio.utils.log_feature_analytics)
         #gradio.utils.get_local_ip_address = noop(gradio.utils.get_local_ip_address, 'localhost')
+
+    if args.models_from_local_only:
+        os.environ['TRANSFORMERS_OFFLINE']='1'
 
     with gr.Blocks() as webui:
         with gr.Tab("Generate"):
@@ -513,7 +520,8 @@ def setup_gradio():
                     with gr.Box():
                         exec_arg_listen = gr.Textbox(label="Listen", value=args.listen, placeholder="127.0.0.1:7860/")
                         exec_arg_share = gr.Checkbox(label="Public Share Gradio", value=args.share)
-                        exec_check_for_updates = gr.Checkbox(label="Check For Updates", value=args.check_for_updates)
+                        exec_arg_check_for_updates = gr.Checkbox(label="Check For Updates", value=args.check_for_updates)
+                        exec_arg_models_from_local_only = gr.Checkbox(label="Only Load Models Locally", value=args.models_from_local_only)
                         exec_arg_low_vram = gr.Checkbox(label="Low VRAM", value=args.low_vram)
                         exec_arg_embed_output_metadata = gr.Checkbox(label="Embed Output Metadata", value=args.embed_output_metadata)
                         exec_arg_latents_lean_and_mean = gr.Checkbox(label="Slimmer Computed Latents", value=args.latents_lean_and_mean)
@@ -527,7 +535,7 @@ def setup_gradio():
 
                     check_updates_now = gr.Button(value="Check for Updates")
 
-                    exec_inputs = [exec_arg_share, exec_arg_listen, exec_check_for_updates, exec_arg_low_vram, exec_arg_embed_output_metadata, exec_arg_latents_lean_and_mean, exec_arg_cond_latent_max_chunk_size, exec_arg_sample_batch_size, exec_arg_concurrency_count]
+                    exec_inputs = [exec_arg_share, exec_arg_listen, exec_arg_check_for_updates, exec_arg_models_from_local_only, exec_arg_low_vram, exec_arg_embed_output_metadata, exec_arg_latents_lean_and_mean, exec_arg_cond_latent_max_chunk_size, exec_arg_sample_batch_size, exec_arg_concurrency_count]
 
                     for i in exec_inputs:
                         i.change(

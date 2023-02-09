@@ -190,6 +190,7 @@ Below are settings that override the default launch arguments. Some of these req
 	- For example, `10.0.0.1:8008/gradio` will have the web UI only accept connections through `10.0.0.1`, at the path `/gradio`
 * `Public Share Gradio`: Tells Gradio to generate a public URL for the web UI. Ignored if specifying a path through the `Listen` setting.
 * `Check for Updates`: checks for updates on page load and notifies in console. Only works if you pulled this repo from a gitea instance.
+* `Only Load Models Locally`: enforces offline mode for loading models. This is the equivalent of setting the env var: `TRANSFORMERS_OFFLINE`
 * `Low VRAM`: disables optimizations in TorToiSe that increases VRAM consumption. Suggested if your GPU has under 6GiB.
 * `Embed Output Metadata`: enables embedding the settings and latents used to generate that audio clip inside that audio clip. Metadata is stored as a JSON string in the `lyrics` tag.
 * `Slimmer Computed Latents`: falls back to the original, 12.9KiB way of storing latents (without the extra bits required for using the CVVP model).
