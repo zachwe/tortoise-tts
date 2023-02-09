@@ -14,10 +14,11 @@ import gradio.utils
 
 from datetime import datetime
 
+from fastapi import FastAPI
+
 from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
 from tortoise.utils.text import split_and_recombine_text
-
 
 def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, cvvp_weight, experimentals, progress=gr.Progress(track_tqdm=True)):
     if voice != "microphone":
@@ -321,8 +322,9 @@ def check_for_updates():
 def update_voices():
     return gr.Dropdown.update(choices=sorted(os.listdir("./tortoise/voices")) + ["microphone"])
 
-def export_exec_settings( share, check_for_updates, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
+def export_exec_settings( share, listen_path, check_for_updates, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count ):
     args.share = share
+    args.listen_path = listen_path
     args.low_vram = low_vram
     args.check_for_updates = check_for_updates
     args.cond_latent_max_chunk_size = cond_latent_max_chunk_size
@@ -333,6 +335,7 @@ def export_exec_settings( share, check_for_updates, low_vram, embed_output_metad
 
     settings = {
         'share': args.share,
+        'listen-path': args.listen_path,
         'low-vram':args.low_vram,
         'check-for-updates':args.check_for_updates,
         'cond-latent-max-chunk-size': args.cond_latent_max_chunk_size,
@@ -345,8 +348,65 @@ def export_exec_settings( share, check_for_updates, low_vram, embed_output_metad
     with open(f'./config/exec.json', 'w', encoding="utf-8") as f:
         f.write(json.dumps(settings, indent='\t') )
 
+def setup_args():
+    default_arguments = {
+        'share': False,
+        'listen-path': None,
+        'listen-host': '127.0.0.1',
+        'listen-port': 8000,
+        'check-for-updates': False,
+        'low-vram': False,
+        'sample-batch-size': None,
+        'embed-output-metadata': True,
+        'latents-lean-and-mean': True,
+        'cond-latent-max-chunk-size': 1000000,
+        'concurrency-count': 3,
+    }
 
-def main():
+    if os.path.isfile('./config/exec.json'):
+        with open(f'./config/exec.json', 'r', encoding="utf-8") as f:
+            overrides = json.load(f)
+            for k in overrides:
+                default_arguments[k] = overrides[k]
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--share", action='store_true', default=default_arguments['share'], help="Lets Gradio return a public URL to use anywhere")
+    parser.add_argument("--listen-path", default=default_arguments['listen-path'], help="Path for Gradio to listen on")
+    parser.add_argument("--listen-host", default=default_arguments['listen-host'], help="Host for Gradio to listen on")
+    parser.add_argument("--listen-port", default=default_arguments['listen-port'], type=int, help="Post for Gradio to listen on")
+    parser.add_argument("--check-for-updates", action='store_true', default=default_arguments['check-for-updates'], help="Checks for update on startup")
+    parser.add_argument("--low-vram", action='store_true', default=default_arguments['low-vram'], help="Disables some optimizations that increases VRAM usage")
+    parser.add_argument("--no-embed-output-metadata", action='store_false', default=not default_arguments['embed-output-metadata'], help="Disables embedding output metadata into resulting WAV files for easily fetching its settings used with the web UI (data is stored in the lyrics metadata tag)")
+    parser.add_argument("--latents-lean-and-mean", action='store_true', default=default_arguments['latents-lean-and-mean'], help="Exports the bare essentials for latents.")
+    parser.add_argument("--cond-latent-max-chunk-size", default=default_arguments['cond-latent-max-chunk-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
+    parser.add_argument("--sample-batch-size", default=default_arguments['sample-batch-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
+    parser.add_argument("--concurrency-count", type=int, default=default_arguments['concurrency-count'], help="How many Gradio events to process at once")
+    args = parser.parse_args()
+
+    args.embed_output_metadata = not args.no_embed_output_metadata
+    
+    return args
+
+def setup_tortoise():
+    print("Initializating TorToiSe...")
+    tts = TextToSpeech(minor_optimizations=not args.low_vram)
+    print("TorToiSe initialized, ready for generation.")
+    return tts
+
+def setup_gradio():
+    if not args.share:
+        def noop(function, return_value=None):
+            def wrapped(*args, **kwargs):
+                return return_value
+            return wrapped
+        gradio.utils.version_check = noop(gradio.utils.version_check)
+        gradio.utils.initiated_analytics = noop(gradio.utils.initiated_analytics)
+        gradio.utils.launch_analytics = noop(gradio.utils.launch_analytics)
+        gradio.utils.integration_analytics = noop(gradio.utils.integration_analytics)
+        gradio.utils.error_analytics = noop(gradio.utils.error_analytics)
+        gradio.utils.log_feature_analytics = noop(gradio.utils.log_feature_analytics)
+        #gradio.utils.get_local_ip_address = noop(gradio.utils.get_local_ip_address, 'localhost')
+
     with gr.Blocks() as webui:
         with gr.Tab("Generate"):
             with gr.Row():
@@ -442,6 +502,7 @@ def main():
             with gr.Row():
                 with gr.Column():
                     with gr.Box():
+                        exec_arg_gradio_path = gr.Textbox(label="Gradio Path", value=args.listen_path, placeholder="/")
                         exec_arg_share = gr.Checkbox(label="Public Share Gradio", value=args.share)
                         exec_check_for_updates = gr.Checkbox(label="Check For Updates", value=args.check_for_updates)
                         exec_arg_low_vram = gr.Checkbox(label="Low VRAM", value=args.low_vram)
@@ -457,7 +518,7 @@ def main():
 
                     check_updates_now = gr.Button(value="Check for Updates")
 
-                    exec_inputs = [exec_arg_share, exec_check_for_updates, exec_arg_low_vram, exec_arg_embed_output_metadata, exec_arg_latents_lean_and_mean, exec_arg_cond_latent_max_chunk_size, exec_arg_sample_batch_size, exec_arg_concurrency_count]
+                    exec_inputs = [exec_arg_share, exec_arg_gradio_path, exec_check_for_updates, exec_arg_low_vram, exec_arg_embed_output_metadata, exec_arg_latents_lean_and_mean, exec_arg_cond_latent_max_chunk_size, exec_arg_sample_batch_size, exec_arg_concurrency_count]
 
                     for i in exec_inputs:
                         i.change(
@@ -503,56 +564,31 @@ def main():
 
         #stop.click(fn=None, inputs=None, outputs=None, cancels=[submit_event])
 
-    webui.queue(concurrency_count=args.concurrency_count).launch(share=args.share)
 
+    webui.queue(concurrency_count=args.concurrency_count)
+
+    return webui
 
 if __name__ == "__main__":
-    default_arguments = {
-        'share': False,
-        'check-for-updates': False,
-        'low-vram': False,
-        'sample-batch-size': None,
-        'embed-output-metadata': True,
-        'latents-lean-and-mean': True,
-        'cond-latent-max-chunk-size': 1000000,
-        'concurrency-count': 3,
-    }
+    args = setup_args()
 
-    if os.path.isfile('./config/exec.json'):
-        with open(f'./config/exec.json', 'r', encoding="utf-8") as f:
-            overrides = json.load(f)
-            for k in overrides:
-                default_arguments[k] = overrides[k]
+    if args.listen_path is not None and args.listen_path != "/":
+        import uvicorn
+        uvicorn.run("app:app", host=args.listen_host, port=args.listen_port)
+    else:
+        webui = setup_gradio().launch(share=args.share, prevent_thread_lock=True)
+        tts = setup_tortoise()
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--share", action='store_true', default=default_arguments['share'], help="Lets Gradio return a public URL to use anywhere")
-    parser.add_argument("--check-for-updates", action='store_true', default=default_arguments['check-for-updates'], help="Checks for update on startup")
-    parser.add_argument("--low-vram", action='store_true', default=default_arguments['low-vram'], help="Disables some optimizations that increases VRAM usage")
-    parser.add_argument("--no-embed-output-metadata", action='store_false', default=not default_arguments['embed-output-metadata'], help="Disables embedding output metadata into resulting WAV files for easily fetching its settings used with the web UI (data is stored in the lyrics metadata tag)")
-    parser.add_argument("--latents-lean-and-mean", action='store_true', default=default_arguments['latents-lean-and-mean'], help="Exports the bare essentials for latents.")
-    parser.add_argument("--cond-latent-max-chunk-size", default=default_arguments['cond-latent-max-chunk-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
-    parser.add_argument("--sample-batch-size", default=default_arguments['sample-batch-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
-    parser.add_argument("--concurrency-count", type=int, default=default_arguments['concurrency-count'], help="How many Gradio events to process at once")
-    args = parser.parse_args()
+        webui.block_thread()
+elif __name__ == "app":
+    import sys
+    from fastapi import FastAPI
 
-    args.embed_output_metadata = not args.no_embed_output_metadata
-    
-    if not args.share:
-        def noop(function, return_value=None):
-            def wrapped(*args, **kwargs):
-                return return_value
-            return wrapped
-        gradio.utils.version_check = noop(gradio.utils.version_check)
-        gradio.utils.initiated_analytics = noop(gradio.utils.initiated_analytics)
-        gradio.utils.launch_analytics = noop(gradio.utils.launch_analytics)
-        gradio.utils.integration_analytics = noop(gradio.utils.integration_analytics)
-        gradio.utils.error_analytics = noop(gradio.utils.error_analytics)
-        gradio.utils.log_feature_analytics = noop(gradio.utils.log_feature_analytics)
-        gradio.utils.get_local_ip_address = noop(gradio.utils.get_local_ip_address, 'localhost')
+    sys.argv = [sys.argv[0]]
 
-    print("Initializating TorToiSe...")
-    tts = TextToSpeech(
-        minor_optimizations=not args.low_vram,
-    )
+    app = FastAPI()
+    args = setup_args()
+    webui = setup_gradio()
+    app = gr.mount_gradio_app(app, webui, path=args.listen_path)
 
-    main()
+    tts = setup_tortoise()

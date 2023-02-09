@@ -1,9 +1,14 @@
 import torch
+import psutil
+import importlib
 
 def has_dml():
-    import importlib
     loader = importlib.find_loader('torch_directml')
-    return loader is not None
+    if loader is None:
+        return False
+    
+    import torch_directml
+    return torch_directml.is_available()
 
 def get_device_name():
     name = 'cpu'
@@ -31,16 +36,37 @@ def get_device(verbose=False):
     return torch.device(name)
 
 def get_device_batch_size():
-    if torch.cuda.is_available():
+    available = 1
+    name = get_device_name()
+
+    if name == "dml":
+        # there's nothing publically accessible in the DML API that exposes this
+        # there's a method to get currently used RAM statistics... as tiles
+        available = 1
+    elif name == "cuda":
         _, available = torch.cuda.mem_get_info()
-        availableGb = available / (1024 ** 3)
-        if availableGb > 14:
-            return 16
-        elif availableGb > 10:
-            return 8
-        elif availableGb > 7:
-            return 4
+    elif name == "cpu":
+        available = psutil.virtual_memory()[4]
+
+    availableGb = available / (1024 ** 3)
+    if availableGb > 14:
+        return 16
+    elif availableGb > 10:
+        return 8
+    elif availableGb > 7:
+        return 4
     return 1
+
+def get_device_count():
+    name = get_device_name()
+    if name == "cuda":
+        return torch.cuda.device_count()
+    if name == "dml":
+        import torch_directml
+        return torch_directml.device_count()
+
+    return 1
+
 
 if has_dml():
     _cumsum = torch.cumsum

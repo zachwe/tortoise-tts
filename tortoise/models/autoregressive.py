@@ -9,6 +9,8 @@ from transformers.utils.model_parallel_utils import get_device_map, assert_devic
 from tortoise.models.arch_util import AttentionBlock
 from tortoise.utils.typical_sampling import TypicalLogitsWarper
 
+from tortoise.utils.device import get_device_count
+
 
 def null_position_embeddings(range, dim):
     return torch.zeros((range.shape[0], range.shape[1], dim), device=range.device)
@@ -49,7 +51,7 @@ class GPT2InferenceModel(GPT2PreTrainedModel):
 
     def parallelize(self, device_map=None):
         self.device_map = (
-            get_device_map(len(self.transformer.h), range(torch.cuda.device_count()))
+            get_device_map(len(self.transformer.h), range(get_device_count()))
             if device_map is None
             else device_map
         )
