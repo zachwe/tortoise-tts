@@ -10,8 +10,20 @@ from scipy.io.wavfile import read
 from tortoise.utils.stft import STFT
 
 
-BUILTIN_VOICES_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../voices')
+if 'TORTOISE_VOICES_DIR' not in os.environ:
+    voice_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../voices')
 
+    if not os.path.exists(voice_dir):
+        voice_dir = os.path.dirname('./voices/')
+    
+    os.environ['TORTOISE_VOICES_DIR'] = voice_dir
+
+BUILTIN_VOICES_DIR = os.environ.get('TORTOISE_VOICES_DIR')
+
+os.makedirs(BUILTIN_VOICES_DIR, exist_ok=True)
+
+def get_voice_dir():
+    return BUILTIN_VOICES_DIR
 
 def load_wav_to_torch(full_path):
     sampling_rate, data = read(full_path)

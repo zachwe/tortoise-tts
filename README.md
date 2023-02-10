@@ -36,7 +36,7 @@ My fork boasts the following additions, fixes, and optimizations:
 * uses the entire audio sample instead of the first four seconds of each sound file for better reproducing
 * activated unused DDIM sampler
 * use of some optimizations like `kv_cache`ing for the autoregression sample pass, and keeping data on GPU 
-* compatability with DirectML
+* compatibilty with DirectML
 * easy install scripts
 * and more!
 
@@ -139,7 +139,9 @@ If you're looking to trim your clips, in my opinion, ~~Audacity~~ Tenacity works
 
 Power users with FFMPEG already installed can simply used the provided conversion script in `.\convert\`.
 
-After preparing your clips as WAV files at a sample rate of 22050 Hz, open up the `tortoise-tts` folder you're working in, navigate to `./tortoise/voice/`, create a new folder in whatever name you want, then dump your clips into that folder. While you're in the `voice` folder, you can take a look at the other provided voices.
+After preparing your clips as WAV files at a sample rate of 22050 Hz, open up the `tortoise-tts` folder you're working in, navigate to the `voices` folder, create a new folder in whatever name you want, then dump your clips into that folder. While you're in the `voice` folder, you can take a look at the other provided voices.
+
+**!**NOTE**!**: Before 2023.02.10, voices used to be stored under `.\tortoise\voices\`, but has been moved up one folder. Compatibily is maintained with the old voice folder, but will take priority.
 
 ## Using the Software
 
@@ -269,7 +271,7 @@ This was just a quick test for an adjustable setting, but this one turned out re
 To me, I find a few problems with TorToiSe over 11.AI:
 * computation time is quite an issue. Despite Stable Diffusion proving to be adequate on my 2060, TorToiSe takes quite some time with modest settings.
 	- However, on my 6800XT, performance was drastically uplifted due to having more VRAM for larger batch sizes (at the cost of Krashing).
-* reproducability in a voice depends on the "compatability" with the model TorToiSe was trained on.
+* reproducability in a voice depends on the "compatibilty" with the model TorToiSe was trained on.
 	- However, this also appears to be similar to 11.AI, where it was mostly trained on audiobook readings.
 * the lack of an obvious analog to the "stability" and "similarity" sliders kind of sucks, but it's not the end of the world.
 	However, the `temperature` option seems to prove to be a proper analog to either of these.

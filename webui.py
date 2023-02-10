@@ -17,7 +17,7 @@ from datetime import datetime
 from fastapi import FastAPI
 
 from tortoise.api import TextToSpeech
-from tortoise.utils.audio import load_audio, load_voice, load_voices
+from tortoise.utils.audio import load_audio, load_voice, load_voices, get_voice_dir
 from tortoise.utils.text import split_and_recombine_text
 
 args = None
@@ -75,7 +75,7 @@ def generate(
             conditioning_latents = (conditioning_latents[0], conditioning_latents[1], conditioning_latents[2], None)
             
         if voice != "microphone":
-            torch.save(conditioning_latents, f'./tortoise/voices/{voice}/cond_latents.pth')
+            torch.save(conditioning_latents, f'./{get_voice_dir()}/{voice}/cond_latents.pth')
         voice_samples = None
     else:
         sample_voice = None
@@ -235,7 +235,7 @@ def generate(
         f.write(json.dumps(info, indent='\t') )
 
     if voice is not None and conditioning_latents is not None:
-        with open(f'./tortoise/voices/{voice}/cond_latents.pth', 'rb') as f:
+        with open(f'./{get_voice_dir()}/{voice}/cond_latents.pth', 'rb') as f:
             info['latents'] = base64.b64encode(f.read()).decode("ascii")
 
     if args.embed_output_metadata:
@@ -297,7 +297,7 @@ def read_generate_settings(file, save_latents=True, save_as_temp=True):
         del j['latents']
 
     if latents and save_latents:
-        outdir=f'./tortoise/voices/{".temp" if save_as_temp else j["voice"]}/'
+        outdir=f'./{get_voice_dir()}/{".temp" if save_as_temp else j["voice"]}/'
         os.makedirs(outdir, exist_ok=True)
         with open(f'{outdir}/cond_latents.pth', 'wb') as f:
             f.write(latents)
@@ -390,7 +390,7 @@ def reload_tts():
     tts = setup_tortoise()
 
 def update_voices():
-    return gr.Dropdown.update(choices=sorted(os.listdir("./tortoise/voices")) + ["microphone"])
+    return gr.Dropdown.update(choices=sorted(os.listdir(get_voice_dir())) + ["microphone"])
 
 def export_exec_settings( share, listen, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
     args.share = share
@@ -517,7 +517,7 @@ def setup_gradio():
                     )
                     prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
                     voice = gr.Dropdown(
-                        sorted(os.listdir("./tortoise/voices")) + ["microphone"],
+                        sorted(os.listdir(get_voice_dir())) + ["microphone"],
                         label="Voice",
                         type="value",
                     )
