@@ -40,6 +40,12 @@ My fork boasts the following additions, fixes, and optimizations:
 * easy install scripts
 * and more!
 
+## Colab Notebook
+
+A colab notebook to quickly set up and use this repo is included and available [here](https://colab.research.google.com/drive/1v2yTl-VkhYRflBUND-I9NuVWmCa5HeOg?usp=share_link): https://colab.research.google.com/drive/1v2yTl-VkhYRflBUND-I9NuVWmCa5HeOg
+
+For the unfortunate using Paperspace, this notebook should also work for it.
+
 ## Installing
 
 Outside of the very small prerequisites, everything needed to get TorToiSe working is included in the repo.
@@ -49,6 +55,7 @@ Outside of the very small prerequisites, everything needed to get TorToiSe worki
 Windows:
 * Python 3.9: https://www.python.org/downloads/release/python-3913/
 * Git (optional): https://git-scm.com/download/win
+* CUDA drivers, if NVIDIA
 
 Linux:
 * python3.x (tested with 3.10)
@@ -85,7 +92,9 @@ For AMD users, I still might suggest using Linux+ROCm as it's (relatively) heada
 
 #### Linux
 
-First, make sure you have both `python3.x` and `git` installed, as well as the required compute platform according to your GPU (ROCm or CUDA)
+First, make sure you have both `python3.x` and `git` installed, as well as the required compute platform according to your GPU (ROCm or CUDA).
+
+Simply run the following block:
 
 ```
 git clone https://git.ecker.tech/mrq/tortoise-tts
