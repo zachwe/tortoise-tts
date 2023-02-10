@@ -562,7 +562,7 @@ class TextToSpeech:
             # results, but will increase memory usage.
             if not self.minor_optimizations:
                 self.autoregressive = self.autoregressive.to(self.device)
-
+            
             if get_device_name() == "dml":
                 text_tokens = text_tokens.cpu()
                 best_results = best_results.cpu()
