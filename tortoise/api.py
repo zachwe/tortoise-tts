@@ -36,6 +36,8 @@ from tortoise.utils.device import get_device, get_device_name, get_device_batch_
 
 pbar = None
 
+STOP_SIGNAL = False
+
 MODELS_DIR = os.environ.get('TORTOISE_MODELS_DIR')
 MODELS = {
     'autoregressive.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/autoregressive.pth',
@@ -49,6 +51,11 @@ MODELS = {
 }
 
 def tqdm_override(arr, verbose=False, progress=None, desc=None):
+    global STOP_SIGNAL
+    if STOP_SIGNAL:
+        STOP_SIGNAL = False
+        raise Exception("Kill signal detected")
+
     if verbose and desc is not None:
         print(desc)
 
@@ -60,6 +67,7 @@ def download_models(specific_models=None):
     """
     Call to download all the models that Tortoise uses.
     """
+
     os.makedirs(MODELS_DIR, exist_ok=True)
 
     def show_progress(block_num, block_size, total_size):
