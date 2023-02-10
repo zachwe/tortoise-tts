@@ -1,3 +1,3 @@
 source ./tortoise-venv/bin/activate
-python ./app.py
+python3 ./main.py
 deactivate

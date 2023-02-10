@@ -1,4 +1,4 @@
 call .\tortoise-venv\Scripts\activate.bat
-python app.py
+python main.py
 deactivate
 pause

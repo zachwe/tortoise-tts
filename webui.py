@@ -20,6 +20,10 @@ from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices
 from tortoise.utils.text import split_and_recombine_text
 
+args = None
+webui = None
+tts = None
+
 def generate(text, delimiter, emotion, prompt, voice, mic_audio, seed, candidates, num_autoregressive_samples, diffusion_iterations, temperature, diffusion_sampler, breathing_room, cvvp_weight, experimentals, progress=gr.Progress(track_tqdm=True)):
     try:
         tts
@@ -424,7 +428,7 @@ def setup_args():
     args.listen_host = None
     args.listen_port = None
     args.listen_path = None
-    if args.listen is not None:
+    if args.listen:
         match = re.findall(r"^(?:(.+?):(\d+))?(\/.+?)?$", args.listen)[0]
 
         args.listen_host = match[0] if match[0] != "" else "127.0.0.1"
@@ -624,28 +628,3 @@ def setup_gradio():
     webui.queue(concurrency_count=args.concurrency_count)
 
     return webui
-
-if __name__ == "__main__":
-    args = setup_args()
-
-    if args.listen_path is not None and args.listen_path != "/":
-        import uvicorn
-        uvicorn.run("app:app", host=args.listen_host, port=args.listen_port if not None else 8000)
-    else:
-        webui = setup_gradio()
-        webui.launch(share=args.share, prevent_thread_lock=True, server_name=args.listen_host, server_port=args.listen_port)
-        tts = setup_tortoise()
-
-        webui.block_thread()
-elif __name__ == "app":
-    import sys
-    from fastapi import FastAPI
-
-    sys.argv = [sys.argv[0]]
-
-    app = FastAPI()
-    args = setup_args()
-    webui = setup_gradio()
-    app = gr.mount_gradio_app(app, webui, path=args.listen_path)
-
-    tts = setup_tortoise()
