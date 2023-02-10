@@ -187,7 +187,9 @@ In this tab, you can find some helper utilities that might be of assistance.
 
 For now, an analog to the PNG info found in Voldy's Stable Diffusion Web UI resides here. With it, you can upload an audio file generated with this web UI to view the settings used to generate that output. Additionally, the voice latents used to generate the uploaded audio clip can be extracted.
 
-If you want to reuse its generation settings, simply click "Copy Settings".
+If you want to reuse its generation settings, simply click `Copy Settings`.
+
+To import a voice, click `Import Voice`. Remember to click `Refresh Voice List` in the `Generate` panel afterwards, if it's a new voice.
 
 ### Settings
 
@@ -215,6 +217,11 @@ Below are an explanation of experimental flags. Messing with these might impact 
 * `CVVP Weight`: governs how much weight the CVVP model should influence candidates. The original documentation mentions this is deprecated as it does not really influence things, but you're still free to play around with it.
 	Currently, setting requires regenerating your voice latents, as I forgot to have it return some extra data that weighing against the CVVP model uses. Oops.
 	Setting this to 1 leads to bad behavior.
+* `Top P`: P value used in nucleus sampling; lower values mean the decoder produces more "likely" (aka boring) outputs.
+* `Diffusion Temperature`: the variance of the noise fed into the diffusion model; values at 0 are the "mean" prediction of the diffusion network and will sound bland and smeared.
+* `Length Penalty`: a length penalty applied to the autoregressive decoder; higher settings causes the model to produce more terse outputs.
+* `Repetition Penalty`: a penalty that prevents the autoregressive decoder from repeating itself during decoding. Can be used to reduce the incidence of long silences or "uhhhhhhs", etc.
+* `Conditioning-Free K`: determintes balancing the conditioning free signal with the conditioning-present signal. 
 
 ## Example(s)
 

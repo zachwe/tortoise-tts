@@ -279,7 +279,7 @@ def update_presets(value):
     else:
         return (gr.update(), gr.update())
 
-def read_generate_settings(file, save_latents=True):
+def read_generate_settings(file, save_latents=True, save_as_temp=True):
     j = None
     latents = None
 
@@ -297,7 +297,7 @@ def read_generate_settings(file, save_latents=True):
         del j['latents']
 
     if latents and save_latents:
-        outdir='./voices/.temp/'
+        outdir=f'./tortoise/voices/{".temp" if save_as_temp else j["voice"]}/'
         os.makedirs(outdir, exist_ok=True)
         with open(f'{outdir}/cond_latents.pth', 'wb') as f:
             f.write(latents)
@@ -307,6 +307,8 @@ def read_generate_settings(file, save_latents=True):
         j,
         latents
     )
+def save_latents(file):
+    read_generate_settings(file, save_latents=True, save_as_temp=False)
 
 def import_generate_settings(file="./config/generate.json"):
     settings, _ = read_generate_settings(file, save_latents=False)
@@ -327,7 +329,7 @@ def import_generate_settings(file="./config/generate.json"):
         None if 'diffusion_iterations' not in settings else settings['diffusion_iterations'],
         0.8 if 'temperature' not in settings else settings['temperature'],
         "DDIM" if 'diffusion_sampler' not in settings else settings['diffusion_sampler'],
-        8.0 if 'breathing_room' not in settings else settings['breathing_room'],
+        8   if 'breathing_room' not in settings else settings['breathing_room'],
         0.0 if 'cvvp_weight' not in settings else settings['cvvp_weight'],
         0.8 if 'top_p' not in settings else settings['top_p'],
         1.0 if 'diffusion_temperature' not in settings else settings['diffusion_temperature'],
@@ -578,6 +580,7 @@ def setup_gradio():
                 with gr.Column():
                     audio_in = gr.File(type="file", label="Audio Input", file_types=["audio"])
                     copy_button = gr.Button(value="Copy Settings")
+                    import_voice = gr.Button(value="Import Voice")
                 with gr.Column():
                     metadata_out = gr.JSON(label="Audio Metadata")
                     latents_out = gr.File(type="binary", label="Voice Latents")
@@ -590,6 +593,11 @@ def setup_gradio():
                             latents_out
                         ]
                     )
+
+                import_voice.click(
+                    fn=save_latents,
+                    inputs=audio_in,
+                )
         with gr.Tab("Settings"):
             with gr.Row():
                 exec_inputs = []
@@ -622,11 +630,11 @@ def setup_gradio():
                 with gr.Column():
                     experimental_checkboxes = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=["Conditioning-Free"], label="Experimental Flags")
                     cvvp_weight = gr.Slider(value=0, minimum=0, maximum=1, label="CVVP Weight")
-                    top_p = gr.Slider(value=0.8, minimum=0, maximum=2, label="Top P")
-                    diffusion_temperature = gr.Slider(value=1.0, minimum=0, maximum=2, label="Diffusion Temperature")
+                    top_p = gr.Slider(value=0.8, minimum=0, maximum=1, label="Top P")
+                    diffusion_temperature = gr.Slider(value=1.0, minimum=0, maximum=1, label="Diffusion Temperature")
                     length_penalty = gr.Slider(value=1.0, minimum=0, maximum=8, label="Length Penalty")
                     repetition_penalty = gr.Slider(value=2.0, minimum=0, maximum=8, label="Repetition Penalty")
-                    cond_free_k = gr.Slider(value=2.0, minimum=0, maximum=8, label="Conditioning-Free K")
+                    cond_free_k = gr.Slider(value=2.0, minimum=0, maximum=4, label="Conditioning-Free K")
 
 
         input_settings = [
