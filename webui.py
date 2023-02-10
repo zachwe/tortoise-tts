@@ -144,18 +144,18 @@ def generate(
 
     idx = 0
     for i, file in enumerate(os.listdir(outdir)):
-        if file[-4:] == ".wav":
+        if file[-5:] == ".json":
             idx = idx + 1
 
     def get_name(line=0, candidate=0, combined=False):
+        if combined:
+            return f"{idx}_combined"
+
         name = f"{idx}"
         if len(texts) > 1:
             name = f"{name}_{line}"
         if candidates > 1:
             name = f"{name}_{candidate}"
-
-        if combined:
-            return f"{idx}_combined"
         return name
 
     for line, cut_text in enumerate(texts):
