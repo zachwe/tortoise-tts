@@ -173,6 +173,18 @@ You'll be presented with a bunch of options in the default `Generate` tab, but d
 	`P` refers to the default, vanilla sampling method in `diffusion.py`.
 	To reiterate, this ***only*** is useful for the diffusion decoding path, after the autoregressive outputs are generated.
 
+Below are an explanation of experimental flags. Messing with these might impact performance, as these are exposed only if you know what you are doing.
+* `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower.
+* `Conditional Free`: a quality boosting improvement at the cost of some performance. Enabled by default, as I think the penaly is negligible in the end.
+* `CVVP Weight`: governs how much weight the CVVP model should influence candidates. The original documentation mentions this is deprecated as it does not really influence things, but you're still free to play around with it.
+	Currently, setting requires regenerating your voice latents, as I forgot to have it return some extra data that weighing against the CVVP model uses. Oops.
+	Setting this to 1 leads to bad behavior.
+* `Top P`: P value used in nucleus sampling; lower values mean the decoder produces more "likely" (aka boring) outputs.
+* `Diffusion Temperature`: the variance of the noise fed into the diffusion model; values at 0 are the "mean" prediction of the diffusion network and will sound bland and smeared.
+* `Length Penalty`: a length penalty applied to the autoregressive decoder; higher settings causes the model to produce more terse outputs.
+* `Repetition Penalty`: a penalty that prevents the autoregressive decoder from repeating itself during decoding. Can be used to reduce the incidence of long silences or "uhhhhhhs", etc.
+* `Conditioning-Free K`: determintes balancing the conditioning free signal with the conditioning-present signal. 
+
 After you fill everything out, click `Run`, and wait for your output in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
 
 All outputs are saved under `./result/[voice name]/[timestamp]/` as `result.wav`, and the settings in `input.txt`. There doesn't seem to be an inherent way to add a Download button in Gradio, so keep that folder in mind.
@@ -223,18 +235,6 @@ Below are settings that override the default launch arguments. Some of these req
 * `Concurrency Count`: how many Gradio events the queue can process at once. Leave this over 1 if you want to modify settings in the UI that updates other settings while generating audio clips.
 * `Output Sample Rate`: the sample rate to save the generated audio as. It provides a bit of slight bump in quality
 * `Output Volume`: adjusts the volume through amplitude scaling
-
-Below are an explanation of experimental flags. Messing with these might impact performance, as these are exposed only if you know what you are doing.
-* `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower.
-* `Conditional Free`: a quality boosting improvement at the cost of some performance. Enabled by default, as I think the penaly is negligible in the end.
-* `CVVP Weight`: governs how much weight the CVVP model should influence candidates. The original documentation mentions this is deprecated as it does not really influence things, but you're still free to play around with it.
-	Currently, setting requires regenerating your voice latents, as I forgot to have it return some extra data that weighing against the CVVP model uses. Oops.
-	Setting this to 1 leads to bad behavior.
-* `Top P`: P value used in nucleus sampling; lower values mean the decoder produces more "likely" (aka boring) outputs.
-* `Diffusion Temperature`: the variance of the noise fed into the diffusion model; values at 0 are the "mean" prediction of the diffusion network and will sound bland and smeared.
-* `Length Penalty`: a length penalty applied to the autoregressive decoder; higher settings causes the model to produce more terse outputs.
-* `Repetition Penalty`: a penalty that prevents the autoregressive decoder from repeating itself during decoding. Can be used to reduce the incidence of long silences or "uhhhhhhs", etc.
-* `Conditioning-Free K`: determintes balancing the conditioning free signal with the conditioning-present signal. 
 
 ## Example(s)
 

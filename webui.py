@@ -643,6 +643,24 @@ def setup_gradio():
                             diffusion_iterations,
                         ],
                     )
+
+                    show_experimental_settings = gr.Checkbox(label="Show Experimental Settings")
+                with gr.Column(visible=False) as col:
+                    experimental_column = col
+
+                    experimental_checkboxes = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=["Conditioning-Free"], label="Experimental Flags")
+                    cvvp_weight = gr.Slider(value=0, minimum=0, maximum=1, label="CVVP Weight")
+                    top_p = gr.Slider(value=0.8, minimum=0, maximum=1, label="Top P")
+                    diffusion_temperature = gr.Slider(value=1.0, minimum=0, maximum=1, label="Diffusion Temperature")
+                    length_penalty = gr.Slider(value=1.0, minimum=0, maximum=8, label="Length Penalty")
+                    repetition_penalty = gr.Slider(value=2.0, minimum=0, maximum=8, label="Repetition Penalty")
+                    cond_free_k = gr.Slider(value=2.0, minimum=0, maximum=4, label="Conditioning-Free K")
+
+                    show_experimental_settings.change(
+                        fn=lambda x: gr.update(visible=x),
+                        inputs=show_experimental_settings,
+                        outputs=experimental_column
+                    )
                 with gr.Column():
                     submit = gr.Button(value="Generate")
                     stop = gr.Button(value="Stop")
@@ -783,16 +801,7 @@ def setup_gradio():
                     i.change(
                         fn=export_exec_settings,
                         inputs=exec_inputs
-                        )
-                with gr.Column():
-                    experimental_checkboxes = gr.CheckboxGroup(["Half Precision", "Conditioning-Free"], value=["Conditioning-Free"], label="Experimental Flags")
-                    cvvp_weight = gr.Slider(value=0, minimum=0, maximum=1, label="CVVP Weight")
-                    top_p = gr.Slider(value=0.8, minimum=0, maximum=1, label="Top P")
-                    diffusion_temperature = gr.Slider(value=1.0, minimum=0, maximum=1, label="Diffusion Temperature")
-                    length_penalty = gr.Slider(value=1.0, minimum=0, maximum=8, label="Length Penalty")
-                    repetition_penalty = gr.Slider(value=2.0, minimum=0, maximum=8, label="Repetition Penalty")
-                    cond_free_k = gr.Slider(value=2.0, minimum=0, maximum=4, label="Conditioning-Free K")
-
+                    )
 
         input_settings = [
             text,
