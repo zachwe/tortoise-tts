@@ -436,8 +436,9 @@ def check_for_updates():
     return False
 
 def reload_tts():
+    global tts
     del tts
-    tts = setup_tortoise()
+    tts = setup_tortoise(restart=True)
 
 def cancel_generate():
     tortoise.api.STOP_SIGNAL = True
@@ -535,11 +536,12 @@ def setup_args():
     
     return args
 
-def setup_tortoise():
+def setup_tortoise(restart=False):
     global args
+    global tts
     global voicefixer
 
-    if args.voice_fixer:
+    if args.voice_fixer and not restart:
         try:
             from voicefixer import VoiceFixer
             print("Initializating voice-fixer")
@@ -555,6 +557,7 @@ def setup_tortoise():
 
 def setup_gradio():
     global args
+    
     if not args.share:
         def noop(function, return_value=None):
             def wrapped(*args, **kwargs):
@@ -863,13 +866,17 @@ def setup_gradio():
                     progress
                 )
             except Exception as e:
-                raise gr.Error(e)
+                message = str(e)
+                if message == "Kill signal detected":
+                    reload_tts()
+
+                raise gr.Error(message)
             
 
             return (
                 outputs[0],
                 gr.update(value=sample, visible=sample is not None),
-                gr.update(choices=outputs, visible=len(outputs) > 1, interactive=True),
+                gr.update(choices=outputs, value=outputs[0], visible=len(outputs) > 1, interactive=True),
                 gr.update(visible=len(outputs) > 1),
                 gr.update(value=stats, visible=True),
             )
