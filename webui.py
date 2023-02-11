@@ -193,9 +193,9 @@ def generate(
 
         audio_cache[k]['audio'] = audio
         torchaudio.save(f'{outdir}/{voice}_{k}.wav', audio, args.output_sample_rate)
-
  
     output_voice = None
+    output_voices = []
     if len(texts) > 1:
         for candidate in range(candidates):
             audio_clips = []
@@ -215,15 +215,22 @@ def generate(
             audio = audio.squeeze(0).cpu()
             audio_cache[name] = {
                 'audio': audio,
-                'text': cut_text,
+                'text': text,
             }
 
+            output_voices.append(f'{outdir}/{voice}_{name}.wav')
             if output_voice is None:
                 output_voice = f'{outdir}/{voice}_{name}.wav'
             #    output_voice = audio
     else:
-        name = get_name()
-        output_voice = f'{outdir}/{voice}_{name}.wav'
+        if candidates > 1:
+            for candidate in range(candidates):
+                name = get_name(candidate=candidate)
+                output_voices.append(f'{outdir}/{voice}_{name}.wav')
+        else:
+            name = get_name()
+            output_voices.append(f'{outdir}/{voice}_{name}.wav')
+            #output_voice = f'{outdir}/{voice}_{name}.wav'
 
     info = {
         'text': text,
@@ -277,10 +284,14 @@ def generate(
     with open(f'./config/generate.json', 'w', encoding="utf-8") as f:
         f.write(json.dumps(info, indent='\t') )
 
+    results = [
+        [ seed, "{:.3f}".format(info['time']) ]
+    ]
+
     return (
         sample_voice,
-        output_voice, 
-        seed
+        output_voice if output_voice is not None else output_voices[0], 
+        results,
     )
 
 def update_presets(value):
@@ -303,7 +314,10 @@ def read_generate_settings(file, save_latents=True, save_as_temp=True):
 
     if file is not None:
         if hasattr(file, 'name'):
-            metadata = music_tag.load_file(file.name)
+            file = file.name
+
+        if file[-4:] == ".wav":
+            metadata = music_tag.load_file(file)
             if 'lyrics' in metadata:
                 j = json.loads(str(metadata['lyrics']))
         elif file[-5:] == ".json":
@@ -320,6 +334,9 @@ def read_generate_settings(file, save_latents=True, save_as_temp=True):
         with open(f'{outdir}/cond_latents.pth', 'wb') as f:
             f.write(latents)
         latents = f'{outdir}/cond_latents.pth'
+
+    if "time" in j:
+        j["time"] = "{:.3f}".format(j["time"])
 
     return (
         j,
@@ -592,10 +609,88 @@ def setup_gradio():
                 with gr.Column():
                     selected_voice = gr.Audio(label="Source Sample")
                     output_audio = gr.Audio(label="Output")
-                    usedSeed = gr.Textbox(label="Seed", placeholder="0", interactive=False) 
+                    generation_results = gr.Dataframe(label="Results", headers=["Seed", "Time"]) 
                     
                     submit = gr.Button(value="Generate")
                     stop = gr.Button(value="Stop")
+        with gr.Tab("History"):
+            with gr.Row():
+                with gr.Column():
+                    headers = {
+                        "Name": "",
+                        "Samples": "num_autoregressive_samples",
+                        "Iterations": "diffusion_iterations",
+                        "Temp.": "temperature",
+                        "Sampler": "diffusion_sampler",
+                        "CVVP": "cvvp_weight",
+                        "Top P": "top_p",
+                        "Diff. Temp.": "diffusion_temperature",
+                        "Len Pen": "length_penalty",
+                        "Rep Pen": "repetition_penalty",
+                        "Cond-Free K": "cond_free_k",
+                        "Time": "time",
+                    }
+                    history_info = gr.Dataframe(label="Results", headers=list(headers.keys()))
+            with gr.Row():
+                with gr.Column():
+                    history_voices = gr.Dropdown(
+                        sorted(os.listdir(get_voice_dir())) + ["microphone"],
+                        label="Voice",
+                        type="value",
+                    )
+
+                    history_view_results_button = gr.Button(value="View Files")
+                with gr.Column():
+                    history_results_list = gr.Dropdown(label="Results",type="value", interactive=True)
+                    history_view_result_button = gr.Button(value="View File")
+                with gr.Column():
+                    history_audio = gr.Audio()
+                    history_copy_settings_button = gr.Button(value="Copy Settings")
+                
+                def history_view_results( voice ):
+                    results = []
+                    files = []
+                    outdir = f"./results/{voice}/"
+                    for i, file in enumerate(os.listdir(outdir)):
+                        if file[-4:] != ".wav":
+                            continue
+
+                        metadata, _ = read_generate_settings(f"{outdir}/{file}", save_latents=False)
+                        if metadata is None:
+                            continue
+                            
+                        values = []
+                        for k in headers:
+                            v = file
+                            if k != "Name":
+                                v = metadata[headers[k]]
+                            values.append(v)
+
+
+                        files.append(file)
+                        results.append(values)
+
+                    return (
+                        results,
+                        gr.Dropdown.update(choices=sorted(files))
+                    )
+
+                history_view_results_button.click(
+                    fn=history_view_results,
+                    inputs=history_voices,
+                    outputs=[
+                        history_info,
+                        history_results_list,
+                    ]
+                )
+                history_view_result_button.click(
+                    fn=lambda voice, file: f"./results/{voice}/{file}",
+                    inputs=[
+                        history_voices,
+                        history_results_list,
+                    ],
+                    outputs=history_audio
+                )
         with gr.Tab("Utilities"):
             with gr.Row():
                 with gr.Column():
@@ -683,11 +778,23 @@ def setup_gradio():
 
         submit_event = submit.click(generate,
             inputs=input_settings,
-            outputs=[selected_voice, output_audio, usedSeed],
+            outputs=[selected_voice, output_audio, generation_results],
         )
 
         copy_button.click(import_generate_settings,
-            inputs=audio_in, # JSON elements cannt be used as inputs
+            inputs=audio_in, # JSON elements cannot be used as inputs
+            outputs=input_settings
+        )
+
+        def history_copy_settings( voice, file ):
+            settings = import_generate_settings( f"./results/{voice}/{file}" )
+            return settings
+
+        history_copy_settings_button.click(history_copy_settings,
+            inputs=[
+                history_voices,
+                history_results_list,
+            ],
             outputs=input_settings
         )
 

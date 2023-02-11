@@ -183,6 +183,16 @@ As a quick optimization, I modified the script to have the `conditional_latents`
 
 **!**NOTE**!**: cached `latents.pth` files generated before 2023.02.05 will be ignored, due to a change in computing the conditiona latents. This *should* help bump up voice cloning quality. Apologies for the inconvenience.
 
+### History
+
+In this tab, a rudimentary way of viewing past results can be found here.
+
+With it, you just select a voice, then you can quickly view their generation settings.
+
+To play a file, select a specific file with the second dropdown list.
+
+To reuse a voice file's settings, click `Copy Settings`.
+
 ### Utilities
 
 In this tab, you can find some helper utilities that might be of assistance.
