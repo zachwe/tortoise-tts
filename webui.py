@@ -265,7 +265,7 @@ def generate(
         with open(f'{get_voice_dir()}/{voice}/cond_latents.pth', 'rb') as f:
             info['latents'] = base64.b64encode(f.read()).decode("ascii")
 
-    if voicefixer:
+    if args.voice_fixer and voicefixer:
         # we could do this on the pieces before they get stiched up anyways to save some compute
         # but the stitching would need to read back from disk, defeating the point of caching the waveform
         for path in progress.tqdm(audio_cache, desc="Running voicefix..."):

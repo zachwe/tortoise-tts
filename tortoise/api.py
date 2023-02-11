@@ -483,8 +483,11 @@ class TextToSpeech:
                 auto_conditioning, diffusion_conditioning, auto_conds, _ = conditioning_latents
         else:
             auto_conditioning, diffusion_conditioning = self.get_random_conditioning_latents()
+
         auto_conditioning = auto_conditioning.to(self.device)
         diffusion_conditioning = diffusion_conditioning.to(self.device)
+        if auto_conds is not None:
+            auto_conds = auto_conds.to(self.device)
 
         diffuser = load_discrete_vocoder_diffuser(desired_diffusion_steps=diffusion_iterations, cond_free=cond_free, cond_free_k=cond_free_k)
 
@@ -539,8 +542,10 @@ class TextToSpeech:
                 for batch in tqdm_override(samples, verbose=verbose, progress=progress, desc=desc):
                     for i in range(batch.shape[0]):
                         batch[i] = fix_autoregressive_output(batch[i], stop_mel_token)
+
                     if cvvp_amount != 1:
                         clvp = self.clvp(text_tokens.repeat(batch.shape[0], 1), batch, return_loss=False)
+                        
                     if auto_conds is not None and cvvp_amount > 0:
                         cvvp_accumulator = 0
                         for cl in range(auto_conds.shape[1]):
