@@ -121,7 +121,7 @@ def generate(
     else:
         texts = split_and_recombine_text(text)
  
-    start_time = time.time()
+    full_start_time = time.time()
  
     outdir = f"./results/{voice}/"
     os.makedirs(outdir, exist_ok=True)
@@ -166,8 +166,10 @@ def generate(
 
         print(f"[{str(line+1)}/{str(len(texts))}] Generating line: {cut_text}")
 
+        start_time = time.time()
         gen, additionals = tts.tts(cut_text, **settings )
         seed = additionals[0]
+        run_time = time.time()-start_time
  
         if isinstance(gen, list):
             for j, g in enumerate(gen):
@@ -175,12 +177,14 @@ def generate(
                 audio_cache[name] = {
                     'audio': g,
                     'text': cut_text,
+                    'time': run_time
                 }
         else:
             name = get_name(line=line)
             audio_cache[name] = {
                 'audio': gen,
                 'text': cut_text,
+                'time': run_time,
             }
 
     for k in audio_cache:
@@ -215,6 +219,7 @@ def generate(
             audio_cache[name] = {
                 'audio': audio,
                 'text': text,
+                'time': time.time()-full_start_time
             }
 
             output_voices.append(f'{outdir}/{voice}_{name}.wav')
@@ -252,7 +257,7 @@ def generate(
         'repetition_penalty': repetition_penalty,
         'cond_free_k': cond_free_k,
         'experimentals': experimental_checkboxes,
-        'time': time.time()-start_time,
+        'time': time.time()-full_start_time,
     }
     
     with open(f'{outdir}/input_{idx}.json', 'w', encoding="utf-8") as f:
@@ -265,6 +270,7 @@ def generate(
     if args.embed_output_metadata:
         for path in audio_cache:
             info['text'] = audio_cache[path]['text']
+            info['time'] = audio_cache[path]['time']
 
             metadata = music_tag.load_file(f"{outdir}/{voice}_{path}.wav")
             metadata['lyrics'] = json.dumps(info) 
