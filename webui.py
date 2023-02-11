@@ -14,17 +14,11 @@ import gradio.utils
 
 from datetime import datetime
 
-from fastapi import FastAPI
-
 import tortoise.api
 
 from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices, get_voice_dir
 from tortoise.utils.text import split_and_recombine_text
-
-args = None
-webui = None
-tts = None
 
 def generate(
     text,
@@ -49,6 +43,9 @@ def generate(
     experimental_checkboxes,
     progress=gr.Progress(track_tqdm=True)
 ):
+    global args
+    global tts
+
     try:
         tts
     except NameError:
@@ -77,7 +74,7 @@ def generate(
             conditioning_latents = (conditioning_latents[0], conditioning_latents[1], conditioning_latents[2], None)
             
         if voice != "microphone":
-            torch.save(conditioning_latents, f'./{get_voice_dir()}/{voice}/cond_latents.pth')
+            torch.save(conditioning_latents, f'{get_voice_dir()}/{voice}/cond_latents.pth')
         voice_samples = None
     else:
         sample_voice = None
@@ -146,6 +143,8 @@ def generate(
     for i, file in enumerate(os.listdir(outdir)):
         if file[-5:] == ".json":
             idx = idx + 1
+    if idx:
+        idx = idx + 1
 
     def get_name(line=0, candidate=0, combined=False):
         if combined:
@@ -260,7 +259,7 @@ def generate(
         f.write(json.dumps(info, indent='\t') )
 
     if voice is not None and conditioning_latents is not None:
-        with open(f'./{get_voice_dir()}/{voice}/cond_latents.pth', 'rb') as f:
+        with open(f'{get_voice_dir()}/{voice}/cond_latents.pth', 'rb') as f:
             info['latents'] = base64.b64encode(f.read()).decode("ascii")
 
     if args.embed_output_metadata:
@@ -277,7 +276,10 @@ def generate(
     if sample_voice is not None:
         sample_voice = (tts.input_sample_rate, sample_voice.numpy())
  
-    print(f"Generation took {info['time']} seconds, saved to '{outdir}'\n")
+    if output_voice is None and len(output_voices):
+        output_voice = output_voices[0]
+
+    print(f"Generation took {info['time']} seconds, saved to '{output_voice}'\n")
 
     info['seed'] = settings['use_deterministic_seed']
     del info['latents']
@@ -290,7 +292,7 @@ def generate(
 
     return (
         sample_voice,
-        output_voice if output_voice is not None else output_voices[0], 
+        output_voice, 
         results,
     )
 
@@ -329,7 +331,7 @@ def read_generate_settings(file, save_latents=True, save_as_temp=True):
         del j['latents']
 
     if latents and save_latents:
-        outdir=f'./{get_voice_dir()}/{".temp" if save_as_temp else j["voice"]}/'
+        outdir=f'{get_voice_dir()}/{".temp" if save_as_temp else j["voice"]}/'
         os.makedirs(outdir, exist_ok=True)
         with open(f'{outdir}/cond_latents.pth', 'wb') as f:
             f.write(latents)
@@ -517,12 +519,14 @@ def setup_args():
     return args
 
 def setup_tortoise():
+    global args
     print("Initializating TorToiSe...")
     tts = TextToSpeech(minor_optimizations=not args.low_vram)
     print("TorToiSe initialized, ready for generation.")
     return tts
 
 def setup_gradio():
+    global args
     if not args.share:
         def noop(function, return_value=None):
             def wrapped(*args, **kwargs):
