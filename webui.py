@@ -20,6 +20,8 @@ from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices, get_voice_dir
 from tortoise.utils.text import split_and_recombine_text
 
+voicefixer = None
+
 def generate(
     text,
     delimiter,
@@ -50,7 +52,6 @@ def generate(
         tts
     except NameError:
         raise gr.Error("TTS is still initializing...")
-
 
     if voice != "microphone":
         voices = [voice]
@@ -128,14 +129,17 @@ def generate(
 
     audio_cache = {}
 
-    resampler = torchaudio.transforms.Resample(
-        tts.output_sample_rate,
-        args.output_sample_rate,
-        lowpass_filter_width=16,
-        rolloff=0.85,
-        resampling_method="kaiser_window",
-        beta=8.555504641634386,
-    ) if tts.output_sample_rate != args.output_sample_rate else None
+    resample = None
+    # not a ternary in the event for some reason I want to rely on librosa's upsampling interpolator rather than torchaudio's, for some reason
+    if tts.output_sample_rate != args.output_sample_rate:
+        resampler = torchaudio.transforms.Resample(
+            tts.output_sample_rate,
+            args.output_sample_rate,
+            lowpass_filter_width=16,
+            rolloff=0.85,
+            resampling_method="kaiser_window",
+            beta=8.555504641634386,
+        )
 
     volume_adjust = torchaudio.transforms.Vol(gain=args.output_volume, gain_type="amplitude") if args.output_volume != 1 else None
 
@@ -147,11 +151,10 @@ def generate(
         idx = idx + 1
 
     def get_name(line=0, candidate=0, combined=False):
-        if combined:
-            return f"{idx}_combined"
-
         name = f"{idx}"
-        if len(texts) > 1:
+        if combined:
+            name = f"{name}_combined"
+        elif len(texts) > 1:
             name = f"{name}_{line}"
         if candidates > 1:
             name = f"{name}_{candidate}"
@@ -164,12 +167,14 @@ def generate(
         else:
             cut_text = f"[I am really {emotion.lower()},] {cut_text}"
 
-        print(f"[{str(line+1)}/{str(len(texts))}] Generating line: {cut_text}")
+        progress.msg_prefix = f'[{str(line+1)}/{str(len(texts))}]'
+        print(f"{progress.msg_prefix} Generating line: {cut_text}")
 
         start_time = time.time()
         gen, additionals = tts.tts(cut_text, **settings )
         seed = additionals[0]
         run_time = time.time()-start_time
+        print(f"Generating line took {run_time} seconds")
  
         if isinstance(gen, list):
             for j, g in enumerate(gen):
@@ -203,15 +208,11 @@ def generate(
         for candidate in range(candidates):
             audio_clips = []
             for line in range(len(texts)):
-                if isinstance(gen, list):
-                    name = get_name(line=line, candidate=candidate)
-                    audio = audio_cache[name]['audio']
-                else:
-                    name = get_name(line=line)
-                    audio = audio_cache[name]['audio']
+                name = get_name(line=line, candidate=candidate)
+                audio = audio_cache[name]['audio']
                 audio_clips.append(audio)
             
-            name = get_name(combined=True)
+            name = get_name(candidate=candidate, combined=True)
             audio = torch.cat(audio_clips, dim=-1)
             torchaudio.save(f'{outdir}/{voice}_{name}.wav', audio, args.output_sample_rate)
 
@@ -225,16 +226,10 @@ def generate(
             output_voices.append(f'{outdir}/{voice}_{name}.wav')
             if output_voice is None:
                 output_voice = f'{outdir}/{voice}_{name}.wav'
-            #    output_voice = audio
     else:
-        if candidates > 1:
-            for candidate in range(candidates):
-                name = get_name(candidate=candidate)
-                output_voices.append(f'{outdir}/{voice}_{name}.wav')
-        else:
-            name = get_name()
+        for candidate in range(candidates):
+            name = get_name(candidate=candidate)
             output_voices.append(f'{outdir}/{voice}_{name}.wav')
-            #output_voice = f'{outdir}/{voice}_{name}.wav'
 
     info = {
         'text': text,
@@ -267,8 +262,21 @@ def generate(
         with open(f'{get_voice_dir()}/{voice}/cond_latents.pth', 'rb') as f:
             info['latents'] = base64.b64encode(f.read()).decode("ascii")
 
+    if voicefixer:
+        # we could do this on the pieces before they get stiched up anyways to save some compute
+        # but the stitching would need to read back from disk, defeating the point of caching the waveform
+        for path in progress.tqdm(audio_cache, desc="Running voicefix..."):
+            print("VoiceFix starting")
+            voicefixer.restore(
+                input=f'{outdir}/{voice}_{k}.wav',
+                output=f'{outdir}/{voice}_{k}.wav',
+                #cuda=False,
+                #mode=mode,
+            )
+            print("VoiceFix finished")
+
     if args.embed_output_metadata:
-        for path in audio_cache:
+        for path in progress.tqdm(audio_cache, desc="Embedding metadata..."):
             info['text'] = audio_cache[path]['text']
             info['time'] = audio_cache[path]['time']
 
@@ -438,7 +446,7 @@ def cancel_generate():
 def update_voices():
     return gr.Dropdown.update(choices=sorted(os.listdir(get_voice_dir())) + ["microphone"])
 
-def export_exec_settings( share, listen, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
+def export_exec_settings( share, listen, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
     args.share = share
     args.listen = listen
     args.low_vram = low_vram
@@ -448,6 +456,7 @@ def export_exec_settings( share, listen, check_for_updates, models_from_local_on
     args.sample_batch_size = sample_batch_size
     args.embed_output_metadata = embed_output_metadata
     args.latents_lean_and_mean = latents_lean_and_mean
+    args.voice_fixer = voice_fixer
     args.concurrency_count = concurrency_count
     args.output_sample_rate = output_sample_rate
     args.output_volume = output_volume
@@ -462,6 +471,7 @@ def export_exec_settings( share, listen, check_for_updates, models_from_local_on
         'sample-batch-size': args.sample_batch_size,
         'embed-output-metadata': args.embed_output_metadata,
         'latents-lean-and-mean': args.latents_lean_and_mean,
+        'voice-fixer': args.voice_fixer,
         'concurrency-count': args.concurrency_count,
         'output-sample-rate': args.output_sample_rate,
         'output-volume': args.output_volume,
@@ -480,6 +490,7 @@ def setup_args():
         'sample-batch-size': None,
         'embed-output-metadata': True,
         'latents-lean-and-mean': True,
+        'voice-fixer': True,
         'cond-latent-max-chunk-size': 1000000,
         'concurrency-count': 2,
         'output-sample-rate': 44100,
@@ -500,6 +511,7 @@ def setup_args():
     parser.add_argument("--low-vram", action='store_true', default=default_arguments['low-vram'], help="Disables some optimizations that increases VRAM usage")
     parser.add_argument("--no-embed-output-metadata", action='store_false', default=not default_arguments['embed-output-metadata'], help="Disables embedding output metadata into resulting WAV files for easily fetching its settings used with the web UI (data is stored in the lyrics metadata tag)")
     parser.add_argument("--latents-lean-and-mean", action='store_true', default=default_arguments['latents-lean-and-mean'], help="Exports the bare essentials for latents.")
+    parser.add_argument("--voice-fixer", action='store_true', default=default_arguments['voice-fixer'], help="Uses python module 'voicefixer' to improve audio quality, if available.")
     parser.add_argument("--cond-latent-max-chunk-size", default=default_arguments['cond-latent-max-chunk-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
     parser.add_argument("--sample-batch-size", default=default_arguments['sample-batch-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
     parser.add_argument("--concurrency-count", type=int, default=default_arguments['concurrency-count'], help="How many Gradio events to process at once")
@@ -526,6 +538,17 @@ def setup_args():
 
 def setup_tortoise():
     global args
+    global voicefixer
+
+    if args.voice_fixer:
+        try:
+            from voicefixer import VoiceFixer
+            print("Initializating voice-fixer")
+            voicefixer = VoiceFixer()
+            print("initialized voice-fixer")
+        except Exception as e:
+            pass
+
     print("Initializating TorToiSe...")
     tts = TextToSpeech(minor_optimizations=not args.low_vram)
     print("TorToiSe initialized, ready for generation.")
@@ -736,6 +759,7 @@ def setup_gradio():
                         gr.Checkbox(label="Low VRAM", value=args.low_vram),
                         gr.Checkbox(label="Embed Output Metadata", value=args.embed_output_metadata),
                         gr.Checkbox(label="Slimmer Computed Latents", value=args.latents_lean_and_mean),
+                        gr.Checkbox(label="Voice Fixer", value=args.voice_fixer),
                     ]
                     gr.Button(value="Check for Updates").click(check_for_updates)
                     gr.Button(value="Reload TTS").click(reload_tts)

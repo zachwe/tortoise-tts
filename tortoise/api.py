@@ -61,7 +61,7 @@ def tqdm_override(arr, verbose=False, progress=None, desc=None):
 
     if progress is None:
         return tqdm(arr, disable=not verbose)
-    return progress.tqdm(arr, desc=desc, track_tqdm=True)
+    return progress.tqdm(arr, desc=f'{progress.msg_prefix} {desc}' if hasattr(progress, 'msg_prefix') else desc, track_tqdm=True)
 
 def download_models(specific_models=None):
     """
