@@ -443,8 +443,12 @@ def reload_tts():
 def cancel_generate():
     tortoise.api.STOP_SIGNAL = True
 
+def get_voice_list():
+    voice_dir = get_voice_dir()
+    return [d for d in os.listdir(voice_dir) if os.path.isdir(os.path.join(voice_dir, d))]
+
 def update_voices():
-    return gr.Dropdown.update(choices=sorted(os.listdir(get_voice_dir())) + ["microphone"])
+    return gr.Dropdown.update(choices=sorted(get_voice_list()) + ["microphone"])
 
 def export_exec_settings( share, listen, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
     args.share = share
@@ -592,7 +596,7 @@ def setup_gradio():
                     )
                     prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
                     voice = gr.Dropdown(
-                        sorted(os.listdir(get_voice_dir())) + ["microphone"],
+                        sorted(get_voice_list()) + ["microphone"],
                         label="Voice",
                         type="value",
                     )
@@ -692,7 +696,7 @@ def setup_gradio():
             with gr.Row():
                 with gr.Column():
                     history_voices = gr.Dropdown(
-                        sorted(os.listdir(get_voice_dir())) + ["microphone"],
+                        sorted(get_voice_list()) + ["microphone"],
                         label="Voice",
                         type="value",
                     )
