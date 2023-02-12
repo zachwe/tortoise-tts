@@ -294,7 +294,7 @@ class TextToSpeech:
         if self.preloaded_tensors:
             self.cvvp = self.cvvp.to(self.device)
 
-    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, chunk_size=None, max_chunk_size=None, chunk_tensors=True):
+    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, chunk_size=None, max_chunk_size=None, chunk_tensors=True, calculation_mode=0):
         """
         Transforms one or more voice_samples into a tuple (autoregressive_conditioning_latent, diffusion_conditioning_latent).
         These are expressive learned latents that encode aspects of the provided clips like voice, intonation, and acoustic
@@ -303,54 +303,77 @@ class TextToSpeech:
         """
         with torch.no_grad():
             # computing conditional latents requires being done on the CPU if using DML because M$ still hasn't implemented some core functions
-            device = 'cpu' if get_device_name() == "dml" else self.device
+            device = torch.device('cpu') if get_device_name() == "dml" else self.device
 
-            voice_samples = [v.to(device) for v in voice_samples]
-
-            auto_conds = []
             if not isinstance(voice_samples, list):
                 voice_samples = [voice_samples]
+            
+            voice_samples = [v.to(device) for v in voice_samples]
+
+            samples = []
+            auto_conds = []
             for vs in voice_samples:
                 auto_conds.append(format_conditioning(vs, device=device, sampling_rate=self.input_sample_rate))
-
             auto_conds = torch.stack(auto_conds, dim=1)
 
-            if get_device_name() == "dml":
-                self.autoregressive = self.autoregressive.cpu()
+            resampler = torchaudio.transforms.Resample(
+                self.input_sample_rate,
+                self.output_sample_rate,
+                lowpass_filter_width=16,
+                rolloff=0.85,
+                resampling_method="kaiser_window",
+                beta=8.555504641634386,
+            )
+            # resample in its own pass to make things easier
+            for sample in voice_samples:
+                samples.append(resampler(sample.cpu()).to(device)) # icky no good, easier to do the resampling on CPU than figure out how to do it on GPU
 
+            self.autoregressive = self.autoregressive.to(device)
             auto_latent = self.autoregressive.get_conditioning(auto_conds)
-
             if self.preloaded_tensors:
                 self.autoregressive = self.autoregressive.to(self.device)
+            else:
+                self.autoregressive = self.autoregressive.cpu()
+
             
             diffusion_conds = []
-            
-            samples = [] # resample in its own pass to make things easier
-            for sample in voice_samples:
-                # The diffuser operates at a sample rate of 24000 (except for the latent inputs)
-                #samples.append(torchaudio.functional.resample(sample, 22050, 24000))
-                samples.append(torchaudio.functional.resample(sample, self.input_sample_rate, self.output_sample_rate))
-
-            if chunk_size is None:
-                for sample in tqdm_override(samples, verbose=verbose and len(samples) > 1, progress=progress if len(samples) > 1 else None, desc="Calculating size of best fit..."):
-                    if chunk_tensors:
-                        chunk_size = sample.shape[-1] if chunk_size is None else min( chunk_size, sample.shape[-1] )
-                    else:
-                        chunk_size = sample.shape[-1] if chunk_size is None else max( chunk_size, sample.shape[-1] )
-
-            print(f"Size of best fit: {chunk_size}")
-            if max_chunk_size is not None and chunk_size > max_chunk_size:
-                chunk_size = max_chunk_size
-                print(f"Chunk size exceeded, clamping to: {max_chunk_size}")
-
             chunks = []
-            if chunk_tensors:
-                for sample in tqdm_override(samples, verbose=verbose, progress=progress, desc="Slicing samples into chunks..."):
-                    sliced = torch.chunk(sample, int(sample.shape[-1] / chunk_size) + 1, dim=1)
-                    for s in sliced:
-                        chunks.append(s)
+
+
+            # new behavior: combine all samples, and divide accordingly
+            # doesn't work, need to fix
+            if calculation_mode == 1:
+                concat = torch.cat(samples, dim=-1)
+                if chunk_size is None:
+                    chunk_size = concat.shape[-1]
+
+                if max_chunk_size is not None and chunk_size > max_chunk_size:
+                    while chunk_size > max_chunk_size:
+                        chunk_size = chunk_size / 2
+
+                print(f"Size of best fit: {chunk_size}")
+                chunks = torch.chunk(concat, int(concat.shape[-1] / chunk_size) + 1, dim=1)
+            # default new behavior: use the smallest voice sample as a common chunk size
             else:
-                chunks = samples
+                if chunk_size is None:
+                    for sample in tqdm_override(samples, verbose=verbose and len(samples) > 1, progress=progress if len(samples) > 1 else None, desc="Calculating size of best fit..."):
+                        if chunk_tensors:
+                            chunk_size = sample.shape[-1] if chunk_size is None else min( chunk_size, sample.shape[-1] )
+                        else:
+                            chunk_size = sample.shape[-1] if chunk_size is None else max( chunk_size, sample.shape[-1] )
+
+                print(f"Size of best fit: {chunk_size}")
+                if max_chunk_size is not None and chunk_size > max_chunk_size:
+                    chunk_size = max_chunk_size
+                    print(f"Chunk size exceeded, clamping to: {max_chunk_size}")
+
+                if chunk_tensors:
+                    for sample in tqdm_override(samples, verbose=verbose, progress=progress, desc="Slicing samples into chunks..."):
+                        sliced = torch.chunk(sample, int(sample.shape[-1] / chunk_size) + 1, dim=1)
+                        for s in sliced:
+                            chunks.append(s)
+                else:
+                    chunks = samples
                 
             for chunk in tqdm_override(chunks, verbose=verbose, progress=progress, desc="Computing conditioning latents..."):
                 chunk = pad_or_truncate(chunk, chunk_size)
@@ -359,13 +382,14 @@ class TextToSpeech:
 
             diffusion_conds = torch.stack(diffusion_conds, dim=1)
 
-            if get_device_name() == "dml":
-                self.diffusion = self.diffusion.cpu()
+            self.diffusion = self.diffusion.to(device)
             
             diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
 
             if self.preloaded_tensors:
                 self.diffusion = self.diffusion.to(self.device)
+            else:
+                self.diffusion = self.diffusion.cpu()
 
         if return_mels:
             return auto_latent, diffusion_latent, auto_conds, diffusion_conds

@@ -152,9 +152,11 @@ Unlike training embeddings for AI image generations, preparing a "dataset" for v
 
 As a general rule of thumb, try to source clips that aren't noisy, solely the subject you are trying to clone, and doesn't contain any non-words (like yells, guttural noises, etc.). If you must, run your source through a background music/noise remover (how to is an exercise left to the reader). It isn't entirely a detriment if you're unable to provide clean audio, however. Just be wary that you might have some headaches with getting acceptable output.
 
-Nine times out of ten, you should be fine using as many clips as possible. There's (now) no preference between combining your audio into one file, or leaving it split. However, if you're aiming for a specific delivery, it *should* be best for you to narrow down to just using that as your provided source (for example, changing one word in a line).
+Nine times out of ten, you should be fine using as many clips as possible. There's no hard specifics on how many, or how long, your sources should be.
 
-There's no hard specifics on how many, or how long, your sources should be.
+However, keep in mind how you combine/separate your clips; depending on the mode to calculate a voice's conditional latents:
+* you might suffer from reduced throughput, as the smallest voice file will be used as the size of best fit
+* a voice might get split mid-word, affecting how the latents are computed, as each batch is averaged together
 
 If you're looking to trim your clips, in my opinion, ~~Audacity~~ Tenacity works good enough, as you can easily output your clips into the proper format (22050 Hz sampling rate).
 
