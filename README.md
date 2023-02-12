@@ -132,6 +132,7 @@ I'll try and make a list of "common" (or what I feel may be common that I experi
 * `torch.cuda.OutOfMemoryError: CUDA out of memory.`: You most likely have a GPU with low VRAM (~4GiB), and the small optimizations with keeping data on the GPU is enough to OOM. Please open the `start.bat` file and add `--low-vram` to the command (for example: `py app.py --low-vram`) to disable those small optimizations.
 * `WavFileWarning: Chunk (non-data) not understood, skipping it.`: something about your WAVs are funny, and its best to remux your audio files with FFMPEG (included batch file in `.\convert\`).
 	- Honestly, I don't know if this does impact output quality, as I feel it's placebo when I do try and correct this.
+* `Unable to find a valid cuDNN algorithm to run convolution`: a rather weird error message that occurs in the colab notebook. The vanilla auto-batch size calculation is a bit flawed, so try and reduce it to a fixed number in `Settings`, like eight or so.
 
 #### Non-"""Issues"""
 

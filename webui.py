@@ -190,7 +190,7 @@ def generate(
                 'time': run_time
             }
             # save here in case some error happens mid-batch
-            torchaudio.save(f'{outdir}/{voice}_{name}.wav', audio, args.output_sample_rate)
+            torchaudio.save(f'{outdir}/{voice}_{name}.wav', audio, tts.output_sample_rate)
 
     for k in audio_cache:
         audio = audio_cache[k]['audio']
@@ -265,10 +265,10 @@ def generate(
     if args.voice_fixer and voicefixer:
         # we could do this on the pieces before they get stiched up anyways to save some compute
         # but the stitching would need to read back from disk, defeating the point of caching the waveform
-        for path in progress.tqdm(audio_cache, desc="Running voicefix..."):
+        for path in progress.tqdm(output_voices, desc="Running voicefix..."):
             voicefixer.restore(
-                input=f'{outdir}/{voice}_{k}.wav',
-                output=f'{outdir}/{voice}_{k}.wav',
+                input=path,
+                output=path,
                 #cuda=False,
                 #mode=mode,
             )
