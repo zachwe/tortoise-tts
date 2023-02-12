@@ -305,6 +305,27 @@ def generate(
         stats,
     )
 
+def compute_latents(voice, mode, progress=gr.Progress(track_tqdm=True)):
+    global tts
+    try:
+        tts
+    except NameError:
+        raise gr.Error("TTS is still initializing...")
+
+    voice_samples, conditioning_latents = load_voice(voice, load_latents=False)
+
+    if voice_samples is None:
+        return
+
+    conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size, calculation_mode=1 if mode else 0)
+
+    if len(conditioning_latents) == 4:
+        conditioning_latents = (conditioning_latents[0], conditioning_latents[1], conditioning_latents[2], None)
+            
+    torch.save(conditioning_latents, f'{get_voice_dir()}/{voice}/cond_latents.pth')
+
+    return voice
+
 def update_presets(value):
     PRESETS = {
         'Ultra Fast': {'num_autoregressive_samples': 16, 'diffusion_iterations': 30, 'cond_free': False},
@@ -467,7 +488,7 @@ def export_exec_settings( share, listen, check_for_updates, models_from_local_on
 
     settings = {
         'share': args.share,
-        'listen': args.listen,
+        'listen': None if args.listen else args.listen,
         'low-vram':args.low_vram,
         'check-for-updates':args.check_for_updates,
         'models-from-local-only':args.models_from_local_only,
@@ -612,6 +633,13 @@ def setup_gradio():
                     refresh_voices.click(update_voices,
                         inputs=None,
                         outputs=voice
+                    )
+                    gr.Button(value="(Re)Compute Voice Latents").click(compute_latents,
+                        inputs=[
+                            voice,
+                            gr.Checkbox(label="Experimental Compute Voice Latents Mode", value=True)
+                        ],
+                        outputs=voice,
                     )
                     
                     prompt.change(fn=lambda value: gr.update(value="Custom"),

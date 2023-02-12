@@ -158,6 +158,8 @@ However, keep in mind how you combine/separate your clips; depending on the mode
 * you might suffer from reduced throughput, as the smallest voice file will be used as the size of best fit
 * a voice might get split mid-word, affecting how the latents are computed, as each batch is averaged together
 
+For safety, try to keep your clips within the same length, or increase your `Voice Latents Max Chunk Size`, if console output alerts the best fit size exceeds this.
+
 If you're looking to trim your clips, in my opinion, ~~Audacity~~ Tenacity works good enough, as you can easily output your clips into the proper format (22050 Hz sampling rate).
 
 Power users with FFMPEG already installed can simply used the provided conversion script in `.\convert\`.
@@ -182,6 +184,11 @@ You'll be presented with a bunch of options in the default `Generate` tab, but d
 * `Custom Emotion + Prompt`: a non-preset "emotion" used for the delivery. This is a shortcut to utilizing "prompt engineering" by starting with `[<emotion>]` in your prompt.
 * `Voice`: the voice you want to clone. You can select `microphone` if you want to use input from your microphone.
 * `Microphone Source`: Use your own voice from a line-in source.
+* `Reload Voice List`: refreshes the voice list and updates. ***Click this*** after adding or removing a new voice.
+* `(Re)Compute Voice Latents`: regenerates a voice's cached latents.
+* `Experimental Compute Latents Mode`: this mode will combine all voice samples into one file, then split it evenly (if under the maximum allowed chunk size under `Settings`)
+
+Below are a list of generation settings:
 * `Candidates`: number of outputs to generate, starting from the best candidate. Depending on your iteration steps, generating the final sound files could be cheap, but they only offer alternatives to the samples generated to pull from (in other words, the later candidates perform worse), so don't be compelled to generate a ton of candidates.
 * `Seed`: initializes the PRNG to this value. Use this if you want to reproduce a generated voice.
 * `Preset`: shortcut values for sample count and iteration steps. Clicking a preset will update its corresponding values. Higher presets result in better quality at the cost of computation time.

@@ -294,7 +294,7 @@ class TextToSpeech:
         if self.preloaded_tensors:
             self.cvvp = self.cvvp.to(self.device)
 
-    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, chunk_size=None, max_chunk_size=None, chunk_tensors=True, calculation_mode=0):
+    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, chunk_size=None, max_chunk_size=None, chunk_tensors=True, calculation_mode=1):
         """
         Transforms one or more voice_samples into a tuple (autoregressive_conditioning_latent, diffusion_conditioning_latent).
         These are expressive learned latents that encode aspects of the provided clips like voice, intonation, and acoustic
@@ -339,7 +339,6 @@ class TextToSpeech:
             diffusion_conds = []
             chunks = []
 
-
             # new behavior: combine all samples, and divide accordingly
             # doesn't work, need to fix
             if calculation_mode == 1:
@@ -349,9 +348,9 @@ class TextToSpeech:
 
                 if max_chunk_size is not None and chunk_size > max_chunk_size:
                     while chunk_size > max_chunk_size:
-                        chunk_size = chunk_size / 2
+                        chunk_size = int(chunk_size / 2)
 
-                print(f"Size of best fit: {chunk_size}")
+                print(f"Using method 1: size of best fit: {chunk_size}")
                 chunks = torch.chunk(concat, int(concat.shape[-1] / chunk_size) + 1, dim=1)
             # default new behavior: use the smallest voice sample as a common chunk size
             else:
@@ -362,7 +361,7 @@ class TextToSpeech:
                         else:
                             chunk_size = sample.shape[-1] if chunk_size is None else max( chunk_size, sample.shape[-1] )
 
-                print(f"Size of best fit: {chunk_size}")
+                print(f"Using method 0: size of best fit: {chunk_size}")
                 if max_chunk_size is not None and chunk_size > max_chunk_size:
                     chunk_size = max_chunk_size
                     print(f"Chunk size exceeded, clamping to: {max_chunk_size}")
