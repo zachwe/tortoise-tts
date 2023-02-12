@@ -196,6 +196,7 @@ Below are a list of generation settings:
 * `Samples`: analogous to samples in image generation. More samples = better resemblance / clone quality, at the cost of performance. This strictly affects clone quality.
 * `Iterations`: influences audio sound quality in the final output. More iterations = higher quality sound. This step is relatively cheap, so do not be discouraged from increasing this. This strictly affects quality in the actual sound.
 * `Temperature`: how much randomness to introduce to the generated samples. Lower values = better resemblance to the source samples, but some temperature is still required for great output.
+	- I assume this affects variance between candidates. Very low temperatures will have very low variety between candidates. Very high temperatures will have large nuances between candidates.
 	- **!**NOTE**!**: This value is very inconsistent and entirely depends on the input voice. In other words, some voices will be receptive to playing with this value, while others won't make much of a difference.
 	- **!**NOTE**!**: some voices will be very receptive to this, where it speaks slowly at low temperatures, but nudging it a hair and it speaks too fast.
 * `Pause Size`: Governs how large pauses are at the end of a clip (in token size, not seconds). Increase this if your output gets cut off at the end.

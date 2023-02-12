@@ -242,7 +242,7 @@ class TextToSpeech:
         self.enable_redaction = enable_redaction
         self.device = device
         if self.enable_redaction:
-            self.aligner = Wav2VecAlignment(device=None)
+            self.aligner = Wav2VecAlignment(device='cpu' if get_device_name() == "dml" else self.device)
 
         self.tokenizer = VoiceBpeTokenizer()
 
@@ -310,12 +310,6 @@ class TextToSpeech:
             
             voice_samples = [v.to(device) for v in voice_samples]
 
-            samples = []
-            auto_conds = []
-            for vs in voice_samples:
-                auto_conds.append(format_conditioning(vs, device=device, sampling_rate=self.input_sample_rate))
-            auto_conds = torch.stack(auto_conds, dim=1)
-
             resampler = torchaudio.transforms.Resample(
                 self.input_sample_rate,
                 self.output_sample_rate,
@@ -324,9 +318,15 @@ class TextToSpeech:
                 resampling_method="kaiser_window",
                 beta=8.555504641634386,
             )
-            # resample in its own pass to make things easier
+
+            samples = []
+            auto_conds = []
             for sample in voice_samples:
+                auto_conds.append(format_conditioning(sample, device=device, sampling_rate=self.input_sample_rate))
                 samples.append(resampler(sample.cpu()).to(device)) # icky no good, easier to do the resampling on CPU than figure out how to do it on GPU
+
+            auto_conds = torch.stack(auto_conds, dim=1)
+
 
             self.autoregressive = self.autoregressive.to(device)
             auto_latent = self.autoregressive.get_conditioning(auto_conds)
@@ -661,7 +661,7 @@ class TextToSpeech:
                                                input_sample_rate=self.input_sample_rate, output_sample_rate=self.output_sample_rate)
 
                 wav = self.vocoder.inference(mel)
-                wav_candidates.append(wav.cpu())
+                wav_candidates.append(wav)
             
             if not self.preloaded_tensors:
                 self.diffusion = self.diffusion.cpu()
@@ -669,7 +669,7 @@ class TextToSpeech:
 
             def potentially_redact(clip, text):
                 if self.enable_redaction:
-                    return self.aligner.redact(clip.squeeze(1), text, self.output_sample_rate).unsqueeze(1)
+                    return self.aligner.redact(clip.squeeze(1).to('cpu' if get_device_name() == "dml" else self.device), text, self.output_sample_rate).unsqueeze(1)
                 return clip
             wav_candidates = [potentially_redact(wav_candidate, text) for wav_candidate in wav_candidates]
 
