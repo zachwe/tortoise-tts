@@ -53,7 +53,8 @@ Outside of the very small prerequisites, everything needed to get TorToiSe worki
 ### Pre-Requirements
 
 Windows:
-* Python 3.9: https://www.python.org/downloads/release/python-3913/
+* ***Python 3.9***: https://www.python.org/downloads/release/python-3913/
+	- I cannot stress this hard enough. PyTorch under Windows requires a very specific version.
 * Git (optional): https://git-scm.com/download/win
 * CUDA drivers, if NVIDIA
 
@@ -77,6 +78,8 @@ Afterwards, run the setup script, depending on your GPU, to automatically set th
 * NVIDIA: `setup-cuda.bat`
 
 If you've done everything right, you shouldn't have any errors.
+
+##### 
 
 ##### Note on DirectML Support
 
@@ -112,16 +115,29 @@ And you should be done!
 
 To check for updates, simply run `update.bat` (or `update.sh`). It should pull from the repo, as well as fetch for any new dependencies.
 
+If, for some reason, you manage to be quick on the trigger to update when I reverse a commit and you get an error trying to run the update script, run `update-force.bat` (or `update-force.sh`) to force an update.
+
 ### Pitfalls You May Encounter
 
 I'll try and make a list of "common" (or what I feel may be common that I experience) issues with getting TorToiSe set up:
 * `CUDA is NOT available for use.`: If you're on Linux, you failed to set up CUDA (if NVIDIA) or ROCm (if AMD). Please make sure you have these installed on your system.
-	If you're on Windows with an AMD card, you're stuck out of luck, as ROCm is not available on Windows (without major hoops to be jumped). If you're on an NVIDIA GPU, then I'm not sure what went wrong.
+	- If you're on Windows with an AMD card, you're stuck out of luck, as ROCm is not available on Windows (without major hoops to be jumped). If you're on an NVIDIA GPU, then I'm not sure what went wrong.
 * `failed reading zip archive: failed finding central directory`: You had a file fail to download completely during the model downloading initialization phase. Please open either `.\models\tortoise\` or `.\models\transformers\`, and delete the offending file.
-	You can deduce what that file is by reading the stack trace. A few lines above the last like will be a line trying to read a model path.
+	- You can deduce what that file is by reading the stack trace. A few lines above the last like will be a line trying to read a model path.
 * `torch.cuda.OutOfMemoryError: CUDA out of memory.`: You most likely have a GPU with low VRAM (~4GiB), and the small optimizations with keeping data on the GPU is enough to OOM. Please open the `start.bat` file and add `--low-vram` to the command (for example: `py app.py --low-vram`) to disable those small optimizations.
 * `WavFileWarning: Chunk (non-data) not understood, skipping it.`: something about your WAVs are funny, and its best to remux your audio files with FFMPEG (included batch file in `.\convert\`).
-	Honestly, I don't know if this does impact output quality, as I feel it's placebo when I do try and correct this.
+	- Honestly, I don't know if this does impact output quality, as I feel it's placebo when I do try and correct this.
+
+#### Non-"""Issues"""
+
+I hate to be a hardass over it, but below are some errors that come from not following my instructions:
+* `Could not find a version that satisfies the requirement torch (from versions: none)`: you are using an incorrect version of python. Please install the linked python3.9.
+* `Failed to import soundfile. 'soundfile' backend is not available.`: you are most likely using conda (or miniconda), an environment I do not support anymore due to bloat. Please install the linked python3.9, or try [this](https://github.com/librosa/librosa/issues/1117#issuecomment-907853797).
+	- I used to have a setup script using conda as an environment, but it's bloat and a headache to use, so I can't keep it around.
+* `No hardware acceleration is available, falling back to CPU...`: you do not have a CUDA runtime/drivers installed. Please install them.
+	- I do not have a link for it, as it literally worked on my machine with the basic drivers for my 2060.
+* `[a silent crash during generating samples with DirectML](https://git.ecker.tech/mrq/tortoise-tts/attachments/8d25ca63-d72b-4448-9483-d97cfe8eb677)`: install python3.9.
+	- I'm not too sure why this is so, but it works for me under 3.9, but not 3.10.
 
 ## Preparing Voice Samples
 
