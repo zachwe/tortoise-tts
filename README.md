@@ -55,6 +55,7 @@ Outside of the very small prerequisites, everything needed to get TorToiSe worki
 Windows:
 * ***Python 3.9***: https://www.python.org/downloads/release/python-3913/
 	- I cannot stress this hard enough. PyTorch under Windows requires a very specific version.
+	- you *might* be able to get away with this if you're not using CUDA as a backend, but I cannot make any promises.
 * Git (optional): https://git-scm.com/download/win
 * CUDA drivers, if NVIDIA
 
@@ -79,17 +80,21 @@ Afterwards, run the setup script, depending on your GPU, to automatically set th
 
 If you've done everything right, you shouldn't have any errors.
 
-##### 
-
 ##### Note on DirectML Support
 
 PyTorch-DirectML is very, very experimental and is still not production quality. There's some headaches with the need for hairy kludgy patches.
 
-These patches rely on transfering the tensor between the GPU and CPU as a hotfix, so performance is definitely harmed.
+These patches rely on transfering the tensor between the GPU and CPU as a hotfix for some unimplemented functions, so performance is definitely harmed.
 
-Both the conditional latent computation and the vocoder pass have to be done on the CPU entirely because of some quirks with DirectML.
+Both half precision (float16) and use of `kv_cache`ing for the autoregressive sampling pass are disabled when using DirectML
+* I haven't been assed to find an (elegant) autocast to float16 for the DirectML backend
+* `kv_cache`ing will silently crash the program if used
 
-On my 6800XT, VRAM usage climbs almost the entire 16GiB, so be wary if you OOM somehow. Low VRAM flags may NOT have any additional impact from the constant copying anyways.
+Both the conditional latent computation and the vocoder pass have to be done on the CPU entirely because of some quirks with DirectML:
+* computing conditional latents will outright crash, I forget the error
+* performing the vocoder on the GPU will produce garbage audio
+
+On my 6800XT, VRAM usage climbs almost the entire 16GiB, so be wary if you OOM somehow. The `Low VRAM` flag may NOT have any additional impact from the constant copying anyways, as the models and tensors already swap between CPU and GPU.
 
 For AMD users, I still might suggest using Linux+ROCm as it's (relatively) headache free, but I had stability problems.
 
@@ -136,8 +141,8 @@ I hate to be a hardass over it, but below are some errors that come from not fol
 	- I used to have a setup script using conda as an environment, but it's bloat and a headache to use, so I can't keep it around.
 * `No hardware acceleration is available, falling back to CPU...`: you do not have a CUDA runtime/drivers installed. Please install them.
 	- I do not have a link for it, as it literally worked on my machine with the basic drivers for my 2060.
-* `[a silent crash during generating samples with DirectML](https://git.ecker.tech/mrq/tortoise-tts/attachments/8d25ca63-d72b-4448-9483-d97cfe8eb677)`: install python3.9.
-	- I'm not too sure why this is so, but it works for me under 3.9, but not 3.10.
+
+If you already have a `tortoise-venv` folder after installing the correct python version, delete that folder, as it will still use the previous version of python.
 
 ## Preparing Voice Samples
 

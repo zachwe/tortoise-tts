@@ -230,6 +230,13 @@ class TextToSpeech:
         self.output_sample_rate = output_sample_rate
         self.minor_optimizations = minor_optimizations
 
+        # for clarity, it's simpler to split these up and just predicate them on requesting VRAM-consuming optimizations
+        self.preloaded_tensors = minor_optimizations
+        self.use_kv_cache = minor_optimizations
+        if get_device_name() == "dml": # does not work with DirectML
+            print("KV caching requested but not supported with the DirectML backend, disabling...")
+            self.use_kv_cache = False
+
         self.models_dir = models_dir
         self.autoregressive_batch_size = get_device_batch_size() if autoregressive_batch_size is None or autoregressive_batch_size == 0 else autoregressive_batch_size
         self.enable_redaction = enable_redaction
@@ -249,7 +256,7 @@ class TextToSpeech:
                                           heads=16, number_text_tokens=255, start_text_token=255, checkpointing=False,
                                           train_solo_embeddings=False).cpu().eval()
             self.autoregressive.load_state_dict(torch.load(get_model_path('autoregressive.pth', models_dir)))
-            self.autoregressive.post_init_gpt2_config(kv_cache=minor_optimizations)
+            self.autoregressive.post_init_gpt2_config(kv_cache=self.use_kv_cache)
 
             self.diffusion = DiffusionTts(model_channels=1024, num_layers=10, in_channels=100, out_channels=200,
                                           in_latent_channels=1024, in_tokens=8193, dropout=0, use_fp16=False, num_heads=16,
@@ -272,7 +279,7 @@ class TextToSpeech:
         self.rlg_auto = None
         self.rlg_diffusion = None
 
-        if self.minor_optimizations:
+        if self.preloaded_tensors:
             self.autoregressive = self.autoregressive.to(self.device)
             self.diffusion = self.diffusion.to(self.device)
             self.clvp = self.clvp.to(self.device)
@@ -284,7 +291,7 @@ class TextToSpeech:
                          speech_enc_depth=8, speech_mask_percentage=0, latent_multiplier=1).cpu().eval()
         self.cvvp.load_state_dict(torch.load(get_model_path('cvvp.pth', self.models_dir)))
         
-        if self.minor_optimizations:
+        if self.preloaded_tensors:
             self.cvvp = self.cvvp.to(self.device)
 
     def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, chunk_size=None, max_chunk_size=None, chunk_tensors=True):
@@ -295,6 +302,7 @@ class TextToSpeech:
         :param voice_samples: List of 2 or more ~10 second reference clips, which should be torch tensors containing 22.05kHz waveform data.
         """
         with torch.no_grad():
+            # computing conditional latents requires being done on the CPU if using DML because M$ still hasn't implemented some core functions
             device = 'cpu' if get_device_name() == "dml" else self.device
 
             voice_samples = [v.to(device) for v in voice_samples]
@@ -306,6 +314,14 @@ class TextToSpeech:
                 auto_conds.append(format_conditioning(vs, device=device, sampling_rate=self.input_sample_rate))
 
             auto_conds = torch.stack(auto_conds, dim=1)
+
+            if get_device_name() == "dml":
+                self.autoregressive = self.autoregressive.cpu()
+
+            auto_latent = self.autoregressive.get_conditioning(auto_conds)
+
+            if self.preloaded_tensors:
+                self.autoregressive = self.autoregressive.to(self.device)
             
             diffusion_conds = []
             
@@ -343,27 +359,13 @@ class TextToSpeech:
 
             diffusion_conds = torch.stack(diffusion_conds, dim=1)
 
-            # required since DML implementation screams about falling back to CPU, but crashes anyways
-            if self.minor_optimizations:
-                if get_device_name() == "dml":
-                    self.autoregressive = self.autoregressive.cpu()
-                    auto_latent = self.autoregressive.get_conditioning(auto_conds)
-                    self.autoregressive = self.autoregressive.to(self.device)
-
-                    self.diffusion = self.diffusion.cpu()
-                    diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
-                    self.diffusion = self.diffusion.to(self.device)
-                else:
-                    auto_latent = self.autoregressive.get_conditioning(auto_conds)
-                    diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
-            else:
-                self.autoregressive = self.autoregressive.to(device)
-                auto_latent = self.autoregressive.get_conditioning(auto_conds)
-                self.autoregressive = self.autoregressive.cpu()
-
-                self.diffusion = self.diffusion.to(device)
-                diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
+            if get_device_name() == "dml":
                 self.diffusion = self.diffusion.cpu()
+            
+            diffusion_latent = self.diffusion.get_conditioning(diffusion_conds)
+
+            if self.preloaded_tensors:
+                self.diffusion = self.diffusion.to(self.device)
 
         if return_mels:
             return auto_latent, diffusion_latent, auto_conds, diffusion_conds
@@ -462,7 +464,9 @@ class TextToSpeech:
         :return: Generated audio clip(s) as a torch tensor. Shape 1,S if k=1 else, (k,1,S) where S is the sample length.
                  Sample rate is 24kHz.
         """
-        if get_device_name() == "dml":
+
+        if get_device_name() == "dml" and half_p:
+            print("Float16 requested but not supported with the DirectML backend, disabling...")
             half_p = False
 
         self.diffusion.enable_fp16 = half_p
@@ -484,11 +488,6 @@ class TextToSpeech:
         else:
             auto_conditioning, diffusion_conditioning = self.get_random_conditioning_latents()
 
-        auto_conditioning = auto_conditioning.to(self.device)
-        diffusion_conditioning = diffusion_conditioning.to(self.device)
-        if auto_conds is not None:
-            auto_conds = auto_conds.to(self.device)
-
         diffuser = load_discrete_vocoder_diffuser(desired_diffusion_steps=diffusion_iterations, cond_free=cond_free, cond_free_k=cond_free_k)
 
         self.autoregressive_batch_size = get_device_batch_size() if sample_batch_size is None or sample_batch_size == 0 else sample_batch_size
@@ -500,10 +499,11 @@ class TextToSpeech:
                 num_autoregressive_samples = 1
             stop_mel_token = self.autoregressive.stop_mel_token
             calm_token = 83  # This is the token for coding silence, which is fixed in place with "fix_autoregressive_output"
-            
-            if not self.minor_optimizations:
-                self.autoregressive = self.autoregressive.to(self.device)
-            
+
+            self.autoregressive = self.autoregressive.to(self.device)
+            auto_conditioning = auto_conditioning.to(self.device)
+            text_tokens = text_tokens.to(self.device)
+
             with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=half_p):
                 for b in tqdm_override(range(num_batches), verbose=verbose, progress=progress, desc="Generating autoregressive samples"):
                     codes = self.autoregressive.inference_speech(auto_conditioning, text_tokens,
@@ -519,7 +519,14 @@ class TextToSpeech:
                     codes = F.pad(codes, (0, padding_needed), value=stop_mel_token)
                     samples.append(codes)
 
+            if not self.preloaded_tensors:
+                self.autoregressive = self.autoregressive.cpu()
+                auto_conditioning = auto_conditioning.cpu()
+
             clip_results = []
+
+            if auto_conds is not None:
+                auto_conds = auto_conds.to(self.device)
 
             with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=half_p):
                 if not self.minor_optimizations:
@@ -558,47 +565,54 @@ class TextToSpeech:
                     else:
                         clip_results.append(clvp)
 
+            if not self.preloaded_tensors and auto_conds is not None:
+                auto_conds = auto_conds.cpu()
+
             clip_results = torch.cat(clip_results, dim=0)
             samples = torch.cat(samples, dim=0)
             best_results = samples[torch.topk(clip_results, k=k).indices]
             
-
-            if not self.minor_optimizations:
+            if not self.preloaded_tensors:
                 self.clvp = self.clvp.cpu()
                 if self.cvvp is not None:
                     self.cvvp = self.cvvp.cpu()
 
             del samples
 
-            # The diffusion model actually wants the last hidden layer from the autoregressive model as conditioning
-            # inputs. Re-produce those for the top results. This could be made more efficient by storing all of these
-            # results, but will increase memory usage.
-            if not self.minor_optimizations:
-                self.autoregressive = self.autoregressive.to(self.device)
-            
             if get_device_name() == "dml":
                 text_tokens = text_tokens.cpu()
                 best_results = best_results.cpu()
                 auto_conditioning = auto_conditioning.cpu()
                 self.autoregressive = self.autoregressive.cpu()
+            else:
+                #text_tokens = text_tokens.to(self.device)
+                #best_results = best_results.to(self.device)
+                auto_conditioning = auto_conditioning.to(self.device)
+                self.autoregressive = self.autoregressive.to(self.device)
 
+            # The diffusion model actually wants the last hidden layer from the autoregressive model as conditioning
+            # inputs. Re-produce those for the top results. This could be made more efficient by storing all of these
+            # results, but will increase memory usage.
             best_latents = self.autoregressive(auto_conditioning.repeat(k, 1), text_tokens.repeat(k, 1),
                                                torch.tensor([text_tokens.shape[-1]], device=text_tokens.device), best_results,
                                                torch.tensor([best_results.shape[-1]*self.autoregressive.mel_length_compression], device=text_tokens.device),
                                                return_latent=True, clip_inputs=False)
             
+            diffusion_conditioning = diffusion_conditioning.to(self.device)
+
             if get_device_name() == "dml":
                 self.autoregressive = self.autoregressive.to(self.device)
                 best_results = best_results.to(self.device)
                 best_latents = best_latents.to(self.device)
-            
-            if not self.minor_optimizations:
-                self.autoregressive = self.autoregressive.cpu()
+
+                self.vocoder = self.vocoder.cpu()
+            else:
+                if not self.preloaded_tensors:
+                    self.autoregressive = self.autoregressive.cpu()
+
                 self.diffusion = self.diffusion.to(self.device)
                 self.vocoder = self.vocoder.to(self.device)
-            
-            if get_device_name() == "dml":
-                self.vocoder = self.vocoder.cpu()
+
             
             del text_tokens
             del auto_conditioning
@@ -626,7 +640,7 @@ class TextToSpeech:
                 wav = self.vocoder.inference(mel)
                 wav_candidates.append(wav.cpu())
             
-            if not self.minor_optimizations:
+            if not self.preloaded_tensors:
                 self.diffusion = self.diffusion.cpu()
                 self.vocoder = self.vocoder.cpu()
 

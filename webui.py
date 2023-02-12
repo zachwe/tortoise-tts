@@ -334,6 +334,9 @@ def read_generate_settings(file, save_latents=True, save_as_temp=True):
         elif file[-5:] == ".json":
             with open(file, 'r') as f:
                 j = json.load(f)
+
+    if j is None:
+        raise gr.Error("No metadata found in audio file to read")
     
     if 'latents' in j and save_latents:
         latents = base64.b64decode(j['latents'])
