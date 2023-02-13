@@ -471,12 +471,12 @@ def get_voice_list():
 def update_voices():
     return gr.Dropdown.update(choices=sorted(get_voice_list()) + ["microphone"])
 
-def export_exec_settings( share, listen, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
-    args.share = share
+def export_exec_settings( listen, share, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume )
     args.listen = listen
-    args.low_vram = low_vram
+    args.share = share
     args.check_for_updates = check_for_updates
     args.models_from_local_only = models_from_local_only
+    args.low_vram = low_vram
     args.cond_latent_max_chunk_size = cond_latent_max_chunk_size
     args.sample_batch_size = sample_batch_size
     args.embed_output_metadata = embed_output_metadata
@@ -487,8 +487,8 @@ def export_exec_settings( share, listen, check_for_updates, models_from_local_on
     args.output_volume = output_volume
 
     settings = {
-        'share': args.share,
         'listen': None if args.listen else args.listen,
+        'share': args.share,
         'low-vram':args.low_vram,
         'check-for-updates':args.check_for_updates,
         'models-from-local-only':args.models_from_local_only,
