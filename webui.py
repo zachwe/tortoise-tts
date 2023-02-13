@@ -19,6 +19,7 @@ import tortoise.api
 from tortoise.api import TextToSpeech
 from tortoise.utils.audio import load_audio, load_voice, load_voices, get_voice_dir
 from tortoise.utils.text import split_and_recombine_text
+from tortoise.utils.device import get_device_name
 
 voicefixer = None
 
@@ -271,7 +272,7 @@ def generate(
             voicefixer.restore(
                 input=path,
                 output=path,
-                #cuda=False,
+                cuda=get_device_name() == "cuda",
                 #mode=mode,
             )
 
@@ -295,7 +296,7 @@ def generate(
     info['seed'] = settings['use_deterministic_seed']
     if 'latents' in info:
         del info['latents']
-        
+
     with open(f'./config/generate.json', 'w', encoding="utf-8") as f:
         f.write(json.dumps(info, indent='\t') )
 
