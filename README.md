@@ -219,7 +219,7 @@ Below are an explanation of experimental flags. Messing with these might impact 
 
 After you fill everything out, click `Run`, and wait for your output in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
 
-All outputs are saved under `./result/[voice name]/[timestamp]/` as `result.wav`, and the settings in `input.txt`. There doesn't seem to be an inherent way to add a Download button in Gradio, so keep that folder in mind.
+All outputs are saved under `./result/[voice name]/[timestamp]/` as `result.wav`, and the settings in `input.txt`. Depending on the browser you're using, you'll be able to see an audio player in the output section of the UI. Clicking on the vertical ellipsis button should bring up the option to download the audio and control the playback speed.
 
 To save you from headaches, I strongly recommend playing around with shorter sentences first to find the right values for the voice you're using before generating longer sentences.
 
