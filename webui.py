@@ -63,6 +63,8 @@ def generate(
             raise gr.Error("Please provide audio from mic when choosing `microphone` as a voice input")
         mic = load_audio(mic_audio, tts.input_sample_rate)
         voice_samples, conditioning_latents = [mic], None
+    elif voice == "random":
+        voice_samples, conditioning_latents = None, None
     else:
         progress(0, desc="Loading voice...")
         voice_samples, conditioning_latents = load_voice(voice)
@@ -291,7 +293,9 @@ def generate(
     print(f"Generation took {info['time']} seconds, saved to '{output_voices[0]}'\n")
 
     info['seed'] = settings['use_deterministic_seed']
-    del info['latents']
+    if 'latents' in info:
+        del info['latents']
+        
     with open(f'./config/generate.json', 'w', encoding="utf-8") as f:
         f.write(json.dumps(info, indent='\t') )
 
@@ -466,12 +470,12 @@ def cancel_generate():
 
 def get_voice_list():
     voice_dir = get_voice_dir()
-    return [d for d in os.listdir(voice_dir) if os.path.isdir(os.path.join(voice_dir, d))]
+    return sorted([d for d in os.listdir(voice_dir) if os.path.isdir(os.path.join(voice_dir, d))]) + ["microphone", "random"]
 
 def update_voices():
-    return gr.Dropdown.update(choices=sorted(get_voice_list()) + ["microphone"])
+    return gr.Dropdown.update(choices=get_voice_list())
 
-def export_exec_settings( listen, share, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume )
+def export_exec_settings( listen, share, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
     args.listen = listen
     args.share = share
     args.check_for_updates = check_for_updates
@@ -620,7 +624,7 @@ def setup_gradio():
                     )
                     prompt = gr.Textbox(lines=1, label="Custom Emotion + Prompt (if selected)")
                     voice = gr.Dropdown(
-                        sorted(get_voice_list()) + ["microphone"],
+                        get_voice_list(),
                         label="Voice",
                         type="value",
                     )
@@ -727,7 +731,7 @@ def setup_gradio():
             with gr.Row():
                 with gr.Column():
                     history_voices = gr.Dropdown(
-                        sorted(get_voice_list()) + ["microphone"],
+                        get_voice_list(),
                         label="Voice",
                         type="value",
                     )
@@ -744,7 +748,7 @@ def setup_gradio():
                     results = []
                     files = []
                     outdir = f"./results/{voice}/"
-                    for i, file in enumerate(os.listdir(outdir)):
+                    for i, file in enumerate(sorted(os.listdir(outdir))):
                         if file[-4:] != ".wav":
                             continue
 
