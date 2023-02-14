@@ -351,7 +351,7 @@ class TextToSpeech:
                         chunk_size = int(chunk_size / 2)
 
                 print(f"Using method 1: size of best fit: {chunk_size}")
-                chunks = torch.chunk(concat, int(concat.shape[-1] / chunk_size) + 1, dim=1)
+                chunks = torch.chunk(concat, int(concat.shape[-1] / chunk_size), dim=1)
             # default new behavior: use the smallest voice sample as a common chunk size
             else:
                 if chunk_size is None:

@@ -65,7 +65,7 @@ def generate(
         mic = load_audio(mic_audio, tts.input_sample_rate)
         voice_samples, conditioning_latents = [mic], None
     elif voice == "random":
-        voice_samples, conditioning_latents = None, None
+        voice_samples, conditioning_latents = None, tts.get_random_conditioning_latents()
     else:
         progress(0, desc="Loading voice...")
         voice_samples, conditioning_latents = load_voice(voice)
@@ -469,9 +469,8 @@ def reload_tts():
 def cancel_generate():
     tortoise.api.STOP_SIGNAL = True
 
-def get_voice_list():
-    voice_dir = get_voice_dir()
-    return sorted([d for d in os.listdir(voice_dir) if os.path.isdir(os.path.join(voice_dir, d))]) + ["microphone", "random"]
+def get_voice_list(dir=get_voice_dir()):
+    return sorted([d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d)) and len(os.listdir(os.path.join(dir, d))) > 0 ]) + ["microphone", "random"]
 
 def update_voices():
     return gr.Dropdown.update(choices=get_voice_list())
@@ -732,7 +731,7 @@ def setup_gradio():
             with gr.Row():
                 with gr.Column():
                     history_voices = gr.Dropdown(
-                        get_voice_list(),
+                        get_voice_list("./results/"),
                         label="Voice",
                         type="value",
                     )
