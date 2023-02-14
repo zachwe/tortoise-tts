@@ -339,20 +339,35 @@ class TextToSpeech:
             diffusion_conds = []
             chunks = []
 
-            # new behavior: combine all samples, and divide accordingly
-            # doesn't work, need to fix
+            # below are two behaviors while i try and figure out how I should gauge the "best" method
+            # there's too many little variables to consider, like:
+            #  does it matter if there's a lot of silence (from expanding to largest size)
+            #  how detrimental is it to slice a waveform mid-sentence/word/phoneme 
+            #  is it "more accurate" to use one large file to compute the latents across
+            #  is it "more accurate" to compute latents across each individual sample (or sentence) and then average them
+            #    averaging latents is how tortoise can voice mix, so it most likely will just average a speaker's range
+            #  do any of these considerations even matter? they don't really seem to
+
+            # new behavior: 
+            #  combine all samples
+            #  divide until each chunk fits under the requested max chunk size
             if calculation_mode == 1:
                 concat = torch.cat(samples, dim=-1)
                 if chunk_size is None:
                     chunk_size = concat.shape[-1]
 
                 if max_chunk_size is not None and chunk_size > max_chunk_size:
-                    while chunk_size > max_chunk_size:
-                        chunk_size = int(chunk_size / 2)
+                    divisions = 1
+                    while int(chunk_size / divisions) > max_chunk_size:
+                        divisions = divisions + 1
+                    chunk_size = int(chunk_size / divisions)
 
                 print(f"Using method 1: size of best fit: {chunk_size}")
                 chunks = torch.chunk(concat, int(concat.shape[-1] / chunk_size), dim=1)
-            # default new behavior: use the smallest voice sample as a common chunk size
+
+            # old new behavior:
+            #  if chunkning tensors: use the smallest voice sample as a common size of best fit
+            #  if not chunking tensors: use the largest voice sample as a common size of best fit
             else:
                 if chunk_size is None:
                     for sample in tqdm_override(samples, verbose=verbose and len(samples) > 1, progress=progress if len(samples) > 1 else None, desc="Calculating size of best fit..."):
@@ -373,7 +388,9 @@ class TextToSpeech:
                             chunks.append(s)
                 else:
                     chunks = samples
-                
+            
+            # expand / truncate samples to match the common size
+            # required, as tensors need to be of the same length
             for chunk in tqdm_override(chunks, verbose=verbose, progress=progress, desc="Computing conditioning latents..."):
                 chunk = pad_or_truncate(chunk, chunk_size)
                 cond_mel = wav_to_univnet_mel(chunk.to(device), do_normalization=False, device=device)

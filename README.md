@@ -187,7 +187,8 @@ You'll be presented with a bunch of options in the default `Generate` tab, but d
 * `Microphone Source`: Use your own voice from a line-in source.
 * `Reload Voice List`: refreshes the voice list and updates. ***Click this*** after adding or removing a new voice.
 * `(Re)Compute Voice Latents`: regenerates a voice's cached latents.
-* `Experimental Compute Latents Mode`: this mode will combine all voice samples into one file, then split it evenly (if under the maximum allowed chunk size under `Settings`)
+* `Experimental Compute Latents Mode`: this mode will adjust the behavior for computing voice latents. leave this checked if you're unsure
+	- I've left my comments on either modes in `./tortoise/api.py`, if you're curious
 
 Below are a list of generation settings:
 * `Candidates`: number of outputs to generate, starting from the best candidate. Depending on your iteration steps, generating the final sound files could be cheap, but they only offer alternatives to the samples generated to pull from (in other words, the later candidates perform worse), so don't be compelled to generate a ton of candidates.
@@ -262,6 +263,7 @@ Below are settings that override the default launch arguments. Some of these req
 * `Embed Output Metadata`: enables embedding the settings and latents used to generate that audio clip inside that audio clip. Metadata is stored as a JSON string in the `lyrics` tag.
 * `Slimmer Computed Latents`: falls back to the original, 12.9KiB way of storing latents (without the extra bits required for using the CVVP model).
 * `Voice Fixer`: runs each generated audio clip through `voicefixer`, if available and installed.
+* `Use CUDA for Voice Fixer`: if available, hints to `voicefixer` to use hardware acceleration. this flag is specifically because I'll OOM on my 2060, since the models for `voicefixer` do not leave the GPU and are heavily fragmented, I presume.
 * `Voice Latent Max Chunk Size`: during the voice latents calculation pass, this limits how large, in bytes, a chunk can be. Large values can run into VRAM OOM errors.
 * `Sample Batch Size`: sets the batch size when generating autoregressive samples. Bigger batches result in faster compute, at the cost of increased VRAM consumption. Leave to 0 to calculate a "best" fit.
 * `Concurrency Count`: how many Gradio events the queue can process at once. Leave this over 1 if you want to modify settings in the UI that updates other settings while generating audio clips.
