@@ -364,6 +364,7 @@ class TextToSpeech:
 
                 print(f"Using method 1: size of best fit: {chunk_size}")
                 chunks = torch.chunk(concat, int(concat.shape[-1] / chunk_size), dim=1)
+                chunk_size = chunks[0].shape[-1]
 
             # old new behavior:
             #  if chunkning tensors: use the smallest voice sample as a common size of best fit
@@ -388,6 +389,7 @@ class TextToSpeech:
                             chunks.append(s)
                 else:
                     chunks = samples
+                chunk_size = chunks[0].shape[-1]
             
             # expand / truncate samples to match the common size
             # required, as tensors need to be of the same length
