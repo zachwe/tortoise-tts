@@ -9,38 +9,18 @@ from scipy.io.wavfile import read
 
 from tortoise.utils.stft import STFT
 
-
-if 'TORTOISE_VOICES_DIR' not in os.environ:
-    voice_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../voices')
-
-    if not os.path.exists(voice_dir):
-        voice_dir = os.path.dirname('./voices/')
-    
-    os.environ['TORTOISE_VOICES_DIR'] = voice_dir
-
-BUILTIN_VOICES_DIR = os.environ.get('TORTOISE_VOICES_DIR')
-
-os.makedirs(BUILTIN_VOICES_DIR, exist_ok=True)
-
 def get_voice_dir():
-    return BUILTIN_VOICES_DIR
+    target = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../voices')
+    if not os.path.exists(target):
+        target = os.path.dirname('./voices/')
 
-def load_wav_to_torch(full_path):
-    sampling_rate, data = read(full_path)
-    if data.dtype == np.int32:
-        norm_fix = 2 ** 31
-    elif data.dtype == np.int16:
-        norm_fix = 2 ** 15
-    elif data.dtype == np.float16 or data.dtype == np.float32:
-        norm_fix = 1.
-    else:
-        raise NotImplemented(f"Provided data dtype not supported: {data.dtype}")
-    return (torch.FloatTensor(data.astype(np.float32)) / norm_fix, sampling_rate)
+    os.makedirs(target, exist_ok=True)
 
+    return target
 
 def load_audio(audiopath, sampling_rate):
     if audiopath[-4:] == '.wav':
-        audio, lsr = load_wav_to_torch(audiopath)
+        audio, lsr = torchaudio.load(audiopath)
     elif audiopath[-4:] == '.mp3':
         audio, lsr = librosa.load(audiopath, sr=sampling_rate)
         audio = torch.FloatTensor(audio)
@@ -98,7 +78,7 @@ def dynamic_range_decompression(x, C=1):
 
 
 def get_voices(extra_voice_dirs=[]):
-    dirs = [BUILTIN_VOICES_DIR] + extra_voice_dirs
+    dirs = [get_voice_dir()] + extra_voice_dirs
     voices = {}
     for d in dirs:
         subs = os.listdir(d)
@@ -135,11 +115,11 @@ def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050,
             return None, torch.load(latent, map_location=device)
         print(f"Latent file out of date: {latent}")
     
-    conds = []
-    for cond_path in voices:
-        c = load_audio(cond_path, sample_rate)
-        conds.append(c)
-    return conds, None
+    samples = []
+    for path in voices:
+        c = load_audio(path, sample_rate)
+        samples.append(c)
+    return samples, None
 
 
 def load_voices(voices, extra_voice_dirs=[]):

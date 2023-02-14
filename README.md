@@ -161,11 +161,14 @@ However, keep in mind how you combine/separate your clips; depending on the mode
 
 For safety, try to keep your clips within the same length, or increase your `Voice Latents Max Chunk Size`, if console output alerts the best fit size exceeds this.
 
-If you're looking to trim your clips, in my opinion, ~~Audacity~~ Tenacity works good enough, as you can easily output your clips into the proper format (22050 Hz sampling rate).
+If you're looking to trim your clips, in my opinion, ~~Audacity~~ Tenacity works good enough, as you can also easily output your clips as a WAV.
 
 Power users with FFMPEG already installed can simply used the provided conversion script in `.\convert\`.
 
-After preparing your clips as WAV files at a sample rate of 22050 Hz, open up the `tortoise-tts` folder you're working in, navigate to the `voices` folder, create a new folder in whatever name you want, then dump your clips into that folder. While you're in the `voice` folder, you can take a look at the other provided voices.
+After preparing your clips as WAV files, you can use the web UI's import feature under `Utilities`, or:
+* navigate to the `voices` folder
+* create a new folder in whatever name you want
+* dump your clips into that folder.
 
 **!**NOTE**!**: Before 2023.02.10, voices used to be stored under `.\tortoise\voices\`, but has been moved up one folder. Compatibily is maintained with the old voice folder, but will take priority.
 
@@ -187,8 +190,8 @@ You'll be presented with a bunch of options in the default `Generate` tab, but d
 * `Microphone Source`: Use your own voice from a line-in source.
 * `Reload Voice List`: refreshes the voice list and updates. ***Click this*** after adding or removing a new voice.
 * `(Re)Compute Voice Latents`: regenerates a voice's cached latents.
-* `Experimental Compute Latents Mode`: this mode will adjust the behavior for computing voice latents. leave this checked if you're unsure
-	- I've left my comments on either modes in `./tortoise/api.py`, if you're curious
+* `Experimental Compute Latents Mode`: this mode will adjust the behavior for computing voice latents. Leave this checked if you're unsure, as this helps boost replicating a voice.
+	- if you're curious, feel free to play around with it by regenerating latents with and without it.
 
 Below are a list of generation settings:
 * `Candidates`: number of outputs to generate, starting from the best candidate. Depending on your iteration steps, generating the final sound files could be cheap, but they only offer alternatives to the samples generated to pull from (in other words, the later candidates perform worse), so don't be compelled to generate a ton of candidates.
@@ -205,18 +208,17 @@ Below are a list of generation settings:
 * `Diffusion Sampler`: sampler method during the diffusion pass. Currently, only `P` and `DDIM` are added, but does not seem to offer any substantial differences in my short tests.
 	`P` refers to the default, vanilla sampling method in `diffusion.py`.
 	To reiterate, this ***only*** is useful for the diffusion decoding path, after the autoregressive outputs are generated.
-
-Below are an explanation of experimental flags. Messing with these might impact performance, as these are exposed only if you know what you are doing.
-* `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower.
-* `Conditional Free`: a quality boosting improvement at the cost of some performance. Enabled by default, as I think the penaly is negligible in the end.
-* `CVVP Weight`: governs how much weight the CVVP model should influence candidates. The original documentation mentions this is deprecated as it does not really influence things, but you're still free to play around with it.
-	Currently, setting requires regenerating your voice latents, as I forgot to have it return some extra data that weighing against the CVVP model uses. Oops.
-	Setting this to 1 leads to bad behavior.
-* `Top P`: P value used in nucleus sampling; lower values mean the decoder produces more "likely" (aka boring) outputs.
-* `Diffusion Temperature`: the variance of the noise fed into the diffusion model; values at 0 are the "mean" prediction of the diffusion network and will sound bland and smeared.
-* `Length Penalty`: a length penalty applied to the autoregressive decoder; higher settings causes the model to produce more terse outputs.
-* `Repetition Penalty`: a penalty that prevents the autoregressive decoder from repeating itself during decoding. Can be used to reduce the incidence of long silences or "uhhhhhhs", etc.
-* `Conditioning-Free K`: determintes balancing the conditioning free signal with the conditioning-present signal. 
+* `Show Experimental Settings`: reveal a list of additional parameters you can play around with. These are hidden by default as I really need to play around with them some more (and the remarks are mostly from the official documentation):
+	- `Half-Precision`: (attempts to) hint to PyTorch to auto-cast to float16 (half precision) for compute. Disabled by default, due to it making computations slower.
+	- `Conditional Free`: a quality boosting improvement at the cost of some performance. Enabled by default, as I think the penaly is negligible in the end.
+	- `CVVP Weight`: governs how much weight the CVVP model should influence candidates. The original documentation mentions this is deprecated as it does not really influence things, but you're still free to play around with it.
+		Currently, setting requires regenerating your voice latents, as I forgot to have it return some extra data that weighing against the CVVP model uses. Oops.
+		Setting this to 1 leads to bad behavior.
+	- `Top P`: P value used in nucleus sampling; lower values mean the decoder produces more "likely" (aka boring) outputs.
+	- `Diffusion Temperature`: the variance of the noise fed into the diffusion model; values at 0 are the "mean" prediction of the diffusion network and will sound bland and smeared.
+	- `Length Penalty`: a length penalty applied to the autoregressive decoder; higher settings causes the model to produce more terse outputs.
+	- `Repetition Penalty`: a penalty that prevents the autoregressive decoder from repeating itself during decoding. Can be used to reduce the incidence of long silences or "uhhhhhhs", etc.
+	- `Conditioning-Free K`: determintes balancing the conditioning free signal with the conditioning-present signal. 
 
 After you fill everything out, click `Run`, and wait for your output in the output window. The sampled voice is also returned, but if you're using multiple files, it'll return the first file, rather than a combined file.
 
@@ -242,11 +244,13 @@ To reuse a voice file's settings, click `Copy Settings`.
 
 In this tab, you can find some helper utilities that might be of assistance.
 
-For now, an analog to the PNG info found in Voldy's Stable Diffusion Web UI resides here. With it, you can upload an audio file generated with this web UI to view the settings used to generate that output. Additionally, the voice latents used to generate the uploaded audio clip can be extracted.
-
-If you want to reuse its generation settings, simply click `Copy Settings`.
-
-To import a voice, click `Import Voice`. Remember to click `Refresh Voice List` in the `Generate` panel afterwards, if it's a new voice.
+This serves two purposes:
+* as a voice importer for normal WAVs:
+	- simply drag an audio file you want to add as a voice, specify the voice name you want to save it to, then click `Import Voice`.
+	- if enabled and available, this will also attempt to clean up a voice sample by running it through `voicefixer` (for some reason if you need this)
+* as an analog to Voldy's Stable Diffusion Web UI for viewing generation metadata from a sample generated with my fork.
+	- simply drag a sound file generated through this fork, and it'll automatically grab the metadata and the voice latents used (if exported)
+	- to use that file's voice latents, simply click `Import Voice`, and it'll save to the voice folder specified (or the original voice, if not specified)
 
 ### Settings
 

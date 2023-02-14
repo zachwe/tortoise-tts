@@ -71,7 +71,7 @@ def generate(
         voice_samples, conditioning_latents = load_voice(voice)
 
     if voice_samples is not None:
-        sample_voice = voice_samples[0].squeeze().cpu()
+        sample_voice = torch.cat(voice_samples, dim=-1).squeeze().cpu()
 
         conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)
         if len(conditioning_latents) == 4:
@@ -81,7 +81,11 @@ def generate(
             torch.save(conditioning_latents, f'{get_voice_dir()}/{voice}/cond_latents.pth')
         voice_samples = None
     else:
-        sample_voice = None
+        if conditioning_latents is not None:
+            sample_voice, _ = load_voice(voice, load_latents=False)
+            sample_voice = torch.cat(sample_voice, dim=-1).squeeze().cpu()
+        else:
+            sample_voice = None
 
     if seed == 0:
         seed = None
@@ -151,9 +155,13 @@ def generate(
         if file[-5:] == ".json":
             idx = idx + 1
 
-    # reserve, if for whatever reason you manage to concurrently generate
-    with open(f'{outdir}/input_{idx}.json', 'w', encoding="utf-8") as f:
-        f.write(" ")
+    # I know there's something to pad I don't care
+    pad = ""
+    if idx < 100:
+        pad = f"{pad}0"
+    if idx < 10:
+        pad = f"{pad}0"
+    idx = f"{pad}{idx}"
 
     def get_name(line=0, candidate=0, combined=False):
         name = f"{idx}"
@@ -206,7 +214,6 @@ def generate(
         audio_cache[k]['audio'] = audio
         torchaudio.save(f'{outdir}/{voice}_{k}.wav', audio, args.output_sample_rate)
  
-    output_voice = None
     output_voices = []
     for candidate in range(candidates):
         if len(texts) > 1:
@@ -224,15 +231,12 @@ def generate(
             audio_cache[name] = {
                 'audio': audio,
                 'text': text,
-                'time': time.time()-full_start_time
+                'time': time.time()-full_start_time,
+                'output': True
             }
-
-            output_voices.append(f'{outdir}/{voice}_{name}.wav')
-            if output_voice is None:
-                output_voice = f'{outdir}/{voice}_{name}.wav'
         else:
             name = get_name(candidate=candidate)
-            output_voices.append(f'{outdir}/{voice}_{name}.wav')
+            audio_cache[name]['output'] = True
 
     info = {
         'text': text,
@@ -257,13 +261,15 @@ def generate(
         'experimentals': experimental_checkboxes,
         'time': time.time()-full_start_time,
     }
-    
-    with open(f'{outdir}/input_{idx}.json', 'w', encoding="utf-8") as f:
-        f.write(json.dumps(info, indent='\t') )
 
-    if voice is not None and conditioning_latents is not None:
-        with open(f'{get_voice_dir()}/{voice}/cond_latents.pth', 'rb') as f:
-            info['latents'] = base64.b64encode(f.read()).decode("ascii")
+    # kludgy yucky codesmells
+    for name in audio_cache:
+        if 'output' not in audio_cache[name]:
+            continue
+
+        output_voices.append(f'{outdir}/{voice}_{name}.wav')
+        with open(f'{outdir}/{voice}_{name}.json', 'w', encoding="utf-8") as f:
+            f.write(json.dumps(info, indent='\t') )
 
     if args.voice_fixer and voicefixer:
         # we could do this on the pieces before they get stiched up anyways to save some compute
@@ -276,6 +282,10 @@ def generate(
                 #mode=mode,
             )
 
+    if voice is not None and conditioning_latents is not None:
+        with open(f'{get_voice_dir()}/{voice}/cond_latents.pth', 'rb') as f:
+            info['latents'] = base64.b64encode(f.read()).decode("ascii")
+
     if args.embed_output_metadata:
         for path in progress.tqdm(audio_cache, desc="Embedding metadata..."):
             info['text'] = audio_cache[path]['text']
@@ -284,13 +294,12 @@ def generate(
             metadata = music_tag.load_file(f"{outdir}/{voice}_{path}.wav")
             metadata['lyrics'] = json.dumps(info) 
             metadata.save()
-
-    #if output_voice is not None:
-    #    output_voice = (args.output_sample_rate, output_voice.numpy())
  
     if sample_voice is not None:
         sample_voice = (tts.input_sample_rate, sample_voice.numpy())
 
+    print(info['time'])
+    print(output_voices)
     print(f"Generation took {info['time']} seconds, saved to '{output_voices[0]}'\n")
 
     info['seed'] = settings['use_deterministic_seed']
@@ -345,7 +354,7 @@ def update_presets(value):
     else:
         return (gr.update(), gr.update())
 
-def read_generate_settings(file, save_latents=True, save_as_temp=True):
+def read_generate_settings(file, read_latents=True):
     j = None
     latents = None
 
@@ -362,31 +371,78 @@ def read_generate_settings(file, save_latents=True, save_as_temp=True):
                 j = json.load(f)
 
     if j is None:
-        raise gr.Error("No metadata found in audio file to read")
-    
-    if 'latents' in j and save_latents:
-        latents = base64.b64decode(j['latents'])
-        del j['latents']
+        gr.Error("No metadata found in audio file to read")
+    else:
+        if 'latents' in j:
+            if read_latents:
+                latents = base64.b64decode(j['latents'])
+            del j['latents']
+        
 
-    if latents and save_latents:
-        outdir=f'{get_voice_dir()}/{".temp" if save_as_temp else j["voice"]}/'
-        os.makedirs(outdir, exist_ok=True)
-        with open(f'{outdir}/cond_latents.pth', 'wb') as f:
-            f.write(latents)
-        latents = f'{outdir}/cond_latents.pth'
-
-    if "time" in j:
-        j["time"] = "{:.3f}".format(j["time"])
+        if "time" in j:
+            j["time"] = "{:.3f}".format(j["time"])
 
     return (
         j,
-        latents
+        latents,
     )
-def save_latents(file):
-    read_generate_settings(file, save_latents=True, save_as_temp=False)
+
+def import_voice(file, saveAs = None):
+    j, latents = read_generate_settings(file, read_latents=True)
+    
+    if j is not None and saveAs is None:
+        saveAs = j['voice']
+    if saveAs is None or saveAs == "":
+        raise gr.Error("Specify a voice name")
+
+    outdir = f'{get_voice_dir()}/{saveAs}/'
+    os.makedirs(outdir, exist_ok=True)
+    if latents:
+        with open(f'{outdir}/cond_latents.pth', 'wb') as f:
+            f.write(latents)
+        latents = f'{outdir}/cond_latents.pth'
+        print(f"Imported latents to {latents}")
+    else:
+        filename = file.name
+        if filename[-4:] != ".wav":
+            raise gr.Error("Please convert to a WAV first")
+
+        path = f"{outdir}/{os.path.basename(filename)}"
+        waveform, sampling_rate = torchaudio.load(filename)
+
+        if args.voice_fixer:
+            # resample to best bandwidth since voicefixer will do it anyways through librosa
+            if sampling_rate != 44100:
+                print(f"Resampling imported voice sample: {path}")
+                resampler = torchaudio.transforms.Resample(
+                    sampling_rate,
+                    44100,
+                    lowpass_filter_width=16,
+                    rolloff=0.85,
+                    resampling_method="kaiser_window",
+                    beta=8.555504641634386,
+                )
+                waveform = resampler(waveform)
+                sampling_rate = 44100
+
+            torchaudio.save(path, waveform, sampling_rate)
+
+            print(f"Running 'voicefixer' on voice sample: {path}")
+            voicefixer.restore(
+                input = path,
+                output = path,
+                cuda=get_device_name() == "cuda" and args.voice_fixer_use_cuda,
+                #mode=mode,
+            )
+        else:
+            torchaudio.save(path, waveform, sampling_rate)
+
+
+        print(f"Imported voice to {path}")
+
 
 def import_generate_settings(file="./config/generate.json"):
-    settings, _ = read_generate_settings(file, save_latents=False)
+    settings, _ = read_generate_settings(file, read_latents=False)
     
     if settings is None:
         return None
@@ -688,6 +744,7 @@ def setup_gradio():
                     )
 
                     show_experimental_settings = gr.Checkbox(label="Show Experimental Settings")
+                    reset_generation_settings_button = gr.Button(value="Reset to Default")
                 with gr.Column(visible=False) as col:
                     experimental_column = col
 
@@ -756,7 +813,7 @@ def setup_gradio():
                         if file[-4:] != ".wav":
                             continue
 
-                        metadata, _ = read_generate_settings(f"{outdir}/{file}", save_latents=False)
+                        metadata, _ = read_generate_settings(f"{outdir}/{file}", read_latents=False)
                         if metadata is None:
                             continue
                             
@@ -797,23 +854,45 @@ def setup_gradio():
                 with gr.Column():
                     audio_in = gr.File(type="file", label="Audio Input", file_types=["audio"])
                     copy_button = gr.Button(value="Copy Settings")
-                    import_voice = gr.Button(value="Import Voice")
+                    import_voice_name = gr.Textbox(label="Voice Name")
+                    import_voice_button = gr.Button(value="Import Voice")
                 with gr.Column():
                     metadata_out = gr.JSON(label="Audio Metadata")
                     latents_out = gr.File(type="binary", label="Voice Latents")
 
+                    def read_generate_settings_proxy(file, saveAs='.temp'):
+                        j, latents = read_generate_settings(file)
+
+                        if latents:
+                            outdir = f'{get_voice_dir()}/{saveAs}/'
+                            os.makedirs(outdir, exist_ok=True)
+                            with open(f'{outdir}/cond_latents.pth', 'wb') as f:
+                                f.write(latents)
+                            
+                            latents = f'{outdir}/cond_latents.pth'
+
+                        return (
+                            j,
+                            gr.update(value=latents, visible=latents is not None),
+                            None if j is None else j['voice']
+                        )
+
                     audio_in.upload(
-                        fn=read_generate_settings,
+                        fn=read_generate_settings_proxy,
                         inputs=audio_in,
                         outputs=[
                             metadata_out,
-                            latents_out
+                            latents_out,
+                            import_voice_name
                         ]
                     )
 
-                import_voice.click(
-                    fn=save_latents,
-                    inputs=audio_in,
+                import_voice_button.click(
+                    fn=import_voice,
+                    inputs=[
+                        audio_in,
+                        import_voice_name,
+                    ]
                 )
         with gr.Tab("Settings"):
             with gr.Row():
@@ -953,6 +1032,17 @@ def setup_gradio():
 
         copy_button.click(import_generate_settings,
             inputs=audio_in, # JSON elements cannot be used as inputs
+            outputs=input_settings
+        )
+
+        def reset_generation_settings():
+            with open(f'./config/generate.json', 'w', encoding="utf-8") as f:
+                f.write(json.dumps({}, indent='\t') )
+            return import_generate_settings()
+
+        reset_generation_settings_button.click(
+            fn=reset_generation_settings,
+            inputs=None,
             outputs=input_settings
         )
 
