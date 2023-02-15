@@ -151,13 +151,31 @@ def generate(
 
     volume_adjust = torchaudio.transforms.Vol(gain=args.output_volume, gain_type="amplitude") if args.output_volume != 1 else None
 
-    idx = 1
+    idx = 0
+    idx_cache = {}
     for i, file in enumerate(os.listdir(outdir)):
-        if file[-5:] == ".json":
-            idx = idx + 1
+        filename = os.path.basename(file)
+        if filename[-5:] == ".json":
+            match = re.findall(rf"^{voice}_(\d+)(?:.+?)\.json$", filename)
+        elif filename[-4:] == ".wav":
+            match = re.findall(rf"^{voice}_(\d+)(?:.+?)\.wav$", filename)
+        else:
+            continue
+        if match is None or len(match) == 0:
+            idx = idx + 1 # safety
+            continue
+        match = match[0]
+        key = match[0]
+        idx_cache[key] = True
+
+    idx = idx + len(idx_cache)
 
     # I know there's something to pad I don't care
     pad = ""
+    if idx < 10000:
+        pad = f"{pad}0"
+    if idx < 1000:
+        pad = f"{pad}0"
     if idx < 100:
         pad = f"{pad}0"
     if idx < 10:
@@ -272,26 +290,28 @@ def generate(
             f.write(json.dumps(info, indent='\t') )
 
     if args.voice_fixer and voicefixer:
-        # we could do this on the pieces before they get stiched up anyways to save some compute
-        # but the stitching would need to read back from disk, defeating the point of caching the waveform
+        fixed_output_voices = []
         for path in progress.tqdm(output_voices, desc="Running voicefix..."):
+            fixed = path.replace(".wav", "_fixed.wav")
             voicefixer.restore(
                 input=path,
-                output=path,
+                output=fixed,
                 cuda=get_device_name() == "cuda" and args.voice_fixer_use_cuda,
                 #mode=mode,
             )
+            fixed_output_voices.append(fixed)
+        output_voices = fixed_output_voices
 
     if voice is not None and conditioning_latents is not None:
         with open(f'{get_voice_dir()}/{voice}/cond_latents.pth', 'rb') as f:
             info['latents'] = base64.b64encode(f.read()).decode("ascii")
 
     if args.embed_output_metadata:
-        for path in progress.tqdm(audio_cache, desc="Embedding metadata..."):
-            info['text'] = audio_cache[path]['text']
-            info['time'] = audio_cache[path]['time']
+        for name in progress.tqdm(audio_cache, desc="Embedding metadata..."):
+            info['text'] = audio_cache[name]['text']
+            info['time'] = audio_cache[name]['time']
 
-            metadata = music_tag.load_file(f"{outdir}/{voice}_{path}.wav")
+            metadata = music_tag.load_file(f"{outdir}/{voice}_{name}.wav")
             metadata['lyrics'] = json.dumps(info) 
             metadata.save()
  
@@ -354,7 +374,7 @@ def update_presets(value):
     else:
         return (gr.update(), gr.update())
 
-def read_generate_settings(file, read_latents=True):
+def read_generate_settings(file, read_latents=True, read_json=True):
     j = None
     latents = None
 
@@ -699,7 +719,7 @@ def setup_gradio():
                         inputs=None,
                         outputs=voice
                     )
-                    voice_latents_chunks = gr.Slider(label="Voice Chunks", minimum=1, maximum=16, value=1, step=1)
+                    voice_latents_chunks = gr.Slider(label="Voice Chunks", minimum=1, maximum=32, value=1, step=1)
                     recompute_voice_latents = gr.Button(value="(Re)Compute Voice Latents")
                     recompute_voice_latents.click(compute_latents,
                         inputs=[
@@ -816,7 +836,7 @@ def setup_gradio():
                         if file[-4:] != ".wav":
                             continue
 
-                        metadata, _ = read_generate_settings(f"{outdir}/{file}", read_latents=False)
+                        metadata, _ = read_generate_settings(f"{outdir}/{file}", read_latents=False, use_json=True)
                         if metadata is None:
                             continue
                             
@@ -911,12 +931,12 @@ def setup_gradio():
                         gr.Checkbox(label="Slimmer Computed Latents", value=args.latents_lean_and_mean),
                         gr.Checkbox(label="Voice Fixer", value=args.voice_fixer),
                         gr.Checkbox(label="Use CUDA for Voice Fixer", value=args.voice_fixer_use_cuda),
+                        gr.Checkbox(label="Force CPU for Conditioning Latents", value=args.force_cpu_for_conditioning_latents),
                     ]
                     gr.Button(value="Check for Updates").click(check_for_updates)
                     gr.Button(value="Reload TTS").click(reload_tts)
                 with gr.Column():
                     exec_inputs = exec_inputs + [
-                        gr.Number(label="Voice Latents Max Chunk Size", precision=0, value=args.force_cpu_for_conditioning_latents),
                         gr.Number(label="Sample Batch Size", precision=0, value=args.sample_batch_size),
                         gr.Number(label="Concurrency Count", precision=0, value=args.concurrency_count),
                         gr.Number(label="Ouptut Sample Rate", precision=0, value=args.output_sample_rate),
