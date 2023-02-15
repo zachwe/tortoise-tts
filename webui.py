@@ -164,9 +164,10 @@ def generate(
         if match is None or len(match) == 0:
             idx = idx + 1 # safety
             continue
-        match = match[0]
         key = match[0]
         idx_cache[key] = True
+
+    print(idx_cache)
 
     idx = idx + len(idx_cache)
 
