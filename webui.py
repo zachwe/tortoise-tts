@@ -548,10 +548,14 @@ def cancel_generate():
     tortoise.api.STOP_SIGNAL = True
 
 def get_voice_list(dir=get_voice_dir()):
+    os.makedirs(dir, exist_ok=True)
     return sorted([d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d)) and len(os.listdir(os.path.join(dir, d))) > 0 ]) + ["microphone", "random"]
 
 def update_voices():
-    return gr.Dropdown.update(choices=get_voice_list())
+    return (
+        gr.Dropdown.update(choices=get_voice_list()),
+        gr.Dropdown.update(choices=get_voice_list("./results/")),
+    )
 
 def export_exec_settings( listen, share, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, voice_fixer_use_cuda, force_cpu_for_conditioning_latents, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
     args.listen = listen
@@ -662,7 +666,7 @@ def setup_tortoise(restart=False):
             voicefixer = VoiceFixer()
             print("initialized voice-fixer")
         except Exception as e:
-            pass
+            print(f"Error occurred while tring to initialize voicefixer: {e}")
 
     print("Initializating TorToiSe...")
     tts = TextToSpeech(minor_optimizations=not args.low_vram)
@@ -716,10 +720,6 @@ def setup_gradio():
                         type="filepath",
                     )
                     refresh_voices = gr.Button(value="Refresh Voice List")
-                    refresh_voices.click(update_voices,
-                        inputs=None,
-                        outputs=voice
-                    )
                     voice_latents_chunks = gr.Slider(label="Voice Chunks", minimum=1, maximum=64, value=1, step=1)
                     recompute_voice_latents = gr.Button(value="(Re)Compute Voice Latents")
                     recompute_voice_latents.click(compute_latents,
@@ -1039,6 +1039,14 @@ def setup_gradio():
                 gr.update(visible=len(outputs) > 1),
                 gr.update(value=stats, visible=True),
             )
+
+        refresh_voices.click(update_voices,
+            inputs=None,
+            outputs=[
+                voice,
+                history_voices
+            ]
+        )
 
         output_pick.click(
             lambda x: x,
