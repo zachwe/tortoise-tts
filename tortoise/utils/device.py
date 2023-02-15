@@ -2,6 +2,8 @@ import torch
 import psutil
 import importlib
 
+DEVICE_OVERRIDE = None
+
 def has_dml():
     loader = importlib.find_loader('torch_directml')
     if loader is None:
@@ -10,7 +12,15 @@ def has_dml():
     import torch_directml
     return torch_directml.is_available()
 
+def set_device_name(name):
+    global DEVICE_OVERRIDE
+    DEVICE_OVERRIDE = name
+
 def get_device_name():
+    global DEVICE_OVERRIDE
+    if DEVICE_OVERRIDE is not None:
+        return DEVICE_OVERRIDE
+
     name = 'cpu'
 
     if has_dml():

@@ -276,6 +276,7 @@ Below are settings that override the default launch arguments. Some of these req
 * `Voice Fixer`: runs each generated audio clip through `voicefixer`, if available and installed.
 * `Use CUDA for Voice Fixer`: if available, hints to `voicefixer` to use hardware acceleration. this flag is specifically because I'll OOM on my 2060, since the models for `voicefixer` do not leave the GPU and are heavily fragmented, I presume.
 * `Force CPU for Conditioning Latents`: forces conditional latents to be calculated on the CPU. Use this if you have really, really large voice samples, and you insist on using very low chunk sizes that your GPU keeps OOMing when calculating
+* `Device Override`: a string to override the name of the device for Torch. For multi-NVIDIA GPU systems, use the accompanied `list_devices.py` script to map device strings.
 * `Sample Batch Size`: sets the batch size when generating autoregressive samples. Bigger batches result in faster compute, at the cost of increased VRAM consumption. Leave to 0 to calculate a "best" fit.
 * `Concurrency Count`: how many Gradio events the queue can process at once. Leave this over 1 if you want to modify settings in the UI that updates other settings while generating audio clips.
 * `Output Sample Rate`: the sample rate to save the generated audio as. It provides a bit of slight bump in quality
