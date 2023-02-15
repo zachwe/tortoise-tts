@@ -195,6 +195,7 @@ You'll be presented with a bunch of options in the default `Generate` tab, but d
 	- this is a very tricky setting to suggest, as there's not necessarily a go-to solution
 		+ some samples seem to work best if it's just one whole chunk
 		+ other voices seem to work better if i split it up more
+		+ I'm *very* sure the best way to go about it is for it to compute latents per sentence, then average, but that's tedious.
 	- the best advice is to just play around with it a bit; pick the lowest chunk size you can make, and if a voice doesn't quite replicate right, increase the chunk count.
 * `(Re)Compute Voice Latents`: regenerates a voice's cached latents.
 

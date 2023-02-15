@@ -1,1 +1,1 @@
-for a in $(find "in/" -maxdepth 1 -not -name '.gitkeep' -type f); do ffmpeg -i "$a" -ar 22050 -ac 1 -c:a pcm_f32le "out/$(basename $a).wav"; done
+for a in $(find "in/" -maxdepth 1 -not -name '.gitkeep' -type f); do ffmpeg -i "$a" -ac 1 "out/$(basename $a).wav"; done
