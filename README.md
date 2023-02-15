@@ -189,9 +189,14 @@ You'll be presented with a bunch of options in the default `Generate` tab, but d
 * `Voice`: the voice you want to clone. You can select `microphone` if you want to use input from your microphone.
 * `Microphone Source`: Use your own voice from a line-in source.
 * `Reload Voice List`: refreshes the voice list and updates. ***Click this*** after adding or removing a new voice.
+* `Voice Chunks`: how many pieces to break up your input voice samples into
+	- this originally was because of VRAM constraints, as large voice samples will run into OOM problems on destitute enough cards
+	- however, after some fiddling, it seems to help with improving replicability
+	- this is a very tricky setting to suggest, as there's not necessarily a go-to solution
+		+ some samples seem to work best if it's just one whole chunk
+		+ other voices seem to work better if i split it up more
+	- the best advice is to just play around with it a bit; pick the lowest chunk size you can make, and if a voice doesn't quite replicate right, increase the chunk count.
 * `(Re)Compute Voice Latents`: regenerates a voice's cached latents.
-* `Experimental Compute Latents Mode`: this mode will adjust the behavior for computing voice latents. Leave this checked if you're unsure, as this helps boost replicating a voice.
-	- if you're curious, feel free to play around with it by regenerating latents with and without it.
 
 Below are a list of generation settings:
 * `Candidates`: number of outputs to generate, starting from the best candidate. Depending on your iteration steps, generating the final sound files could be cheap, but they only offer alternatives to the samples generated to pull from (in other words, the later candidates perform worse), so don't be compelled to generate a ton of candidates.

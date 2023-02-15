@@ -30,6 +30,7 @@ def generate(
     prompt,
     voice,
     mic_audio,
+    voice_latents_chunks,
     seed,
     candidates,
     num_autoregressive_samples,
@@ -73,7 +74,7 @@ def generate(
     if voice_samples is not None:
         sample_voice = torch.cat(voice_samples, dim=-1).squeeze().cpu()
 
-        conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size)
+        conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, slices=voice_latents_chunks)
         if len(conditioning_latents) == 4:
             conditioning_latents = (conditioning_latents[0], conditioning_latents[1], conditioning_latents[2], None)
             
@@ -244,7 +245,6 @@ def generate(
         'emotion': emotion,
         'prompt': prompt,
         'voice': voice,
-        'mic_audio': mic_audio,
         'seed': seed,
         'candidates': candidates,
         'num_autoregressive_samples': num_autoregressive_samples,
@@ -319,7 +319,7 @@ def generate(
         stats,
     )
 
-def compute_latents(voice, mode, progress=gr.Progress(track_tqdm=True)):
+def compute_latents(voice, voice_latents_chunks, progress=gr.Progress(track_tqdm=True)):
     global tts
     try:
         tts
@@ -331,7 +331,7 @@ def compute_latents(voice, mode, progress=gr.Progress(track_tqdm=True)):
     if voice_samples is None:
         return
 
-    conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, max_chunk_size=args.cond_latent_max_chunk_size, calculation_mode=1 if mode else 0)
+    conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, slices=voice_latents_chunks)
 
     if len(conditioning_latents) == 4:
         conditioning_latents = (conditioning_latents[0], conditioning_latents[1], conditioning_latents[2], None)
@@ -453,7 +453,8 @@ def import_generate_settings(file="./config/generate.json"):
         None if 'emotion' not in settings else settings['emotion'],
         None if 'prompt' not in settings else settings['prompt'],
         None if 'voice' not in settings else settings['voice'],
-        None if 'mic_audio' not in settings else settings['mic_audio'],
+        None,
+        None,
         None if 'seed' not in settings else settings['seed'],
         None if 'candidates' not in settings else settings['candidates'],
         None if 'num_autoregressive_samples' not in settings else settings['num_autoregressive_samples'],
@@ -698,10 +699,12 @@ def setup_gradio():
                         inputs=None,
                         outputs=voice
                     )
-                    gr.Button(value="(Re)Compute Voice Latents").click(compute_latents,
+                    voice_latents_chunks = gr.Slider(label="Voice Chunks", minimum=1, maximum=16, value=1, step=1)
+                    recompute_voice_latents = gr.Button(value="(Re)Compute Voice Latents")
+                    recompute_voice_latents.click(compute_latents,
                         inputs=[
                             voice,
-                            gr.Checkbox(label="Experimental Compute Voice Latents Mode", value=True)
+                            voice_latents_chunks,
                         ],
                         outputs=voice,
                     )
@@ -933,6 +936,7 @@ def setup_gradio():
             prompt,
             voice,
             mic_audio,
+            voice_latents_chunks,
             seed,
             candidates,
             num_autoregressive_samples,
@@ -957,6 +961,7 @@ def setup_gradio():
             prompt,
             voice,
             mic_audio,
+            voice_latents_chunks,
             seed,
             candidates,
             num_autoregressive_samples,
@@ -981,6 +986,7 @@ def setup_gradio():
                     prompt,
                     voice,
                     mic_audio,
+                    voice_latents_chunks,
                     seed,
                     candidates,
                     num_autoregressive_samples,
