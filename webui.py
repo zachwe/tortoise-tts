@@ -74,7 +74,7 @@ def generate(
     if voice_samples is not None:
         sample_voice = torch.cat(voice_samples, dim=-1).squeeze().cpu()
 
-        conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, slices=voice_latents_chunks)
+        conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, slices=voice_latents_chunks, force_cpu=args.force_cpu_for_conditioning_latents)
         if len(conditioning_latents) == 4:
             conditioning_latents = (conditioning_latents[0], conditioning_latents[1], conditioning_latents[2], None)
             
@@ -331,7 +331,7 @@ def compute_latents(voice, voice_latents_chunks, progress=gr.Progress(track_tqdm
     if voice_samples is None:
         return
 
-    conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, slices=voice_latents_chunks)
+    conditioning_latents = tts.get_conditioning_latents(voice_samples, return_mels=not args.latents_lean_and_mean, progress=progress, slices=voice_latents_chunks, force_cpu=args.force_cpu_for_conditioning_latents)
 
     if len(conditioning_latents) == 4:
         conditioning_latents = (conditioning_latents[0], conditioning_latents[1], conditioning_latents[2], None)
@@ -532,13 +532,13 @@ def get_voice_list(dir=get_voice_dir()):
 def update_voices():
     return gr.Dropdown.update(choices=get_voice_list())
 
-def export_exec_settings( listen, share, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, voice_fixer_use_cuda, cond_latent_max_chunk_size, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
+def export_exec_settings( listen, share, check_for_updates, models_from_local_only, low_vram, embed_output_metadata, latents_lean_and_mean, voice_fixer, voice_fixer_use_cuda, force_cpu_for_conditioning_latents, sample_batch_size, concurrency_count, output_sample_rate, output_volume ):
     args.listen = listen
     args.share = share
     args.check_for_updates = check_for_updates
     args.models_from_local_only = models_from_local_only
     args.low_vram = low_vram
-    args.cond_latent_max_chunk_size = cond_latent_max_chunk_size
+    args.force_cpu_for_conditioning_latents = force_cpu_for_conditioning_latents
     args.sample_batch_size = sample_batch_size
     args.embed_output_metadata = embed_output_metadata
     args.latents_lean_and_mean = latents_lean_and_mean
@@ -554,7 +554,7 @@ def export_exec_settings( listen, share, check_for_updates, models_from_local_on
         'low-vram':args.low_vram,
         'check-for-updates':args.check_for_updates,
         'models-from-local-only':args.models_from_local_only,
-        'cond-latent-max-chunk-size': args.cond_latent_max_chunk_size,
+        'force-cpu-for-conditioning-latents': args.force_cpu_for_conditioning_latents,
         'sample-batch-size': args.sample_batch_size,
         'embed-output-metadata': args.embed_output_metadata,
         'latents-lean-and-mean': args.latents_lean_and_mean,
@@ -580,7 +580,7 @@ def setup_args():
         'latents-lean-and-mean': True,
         'voice-fixer': True,
         'voice-fixer-use-cuda': True,
-        'cond-latent-max-chunk-size': 1000000,
+        'force-cpu-for-conditioning-latents': False,
         'concurrency-count': 2,
         'output-sample-rate': 44100,
         'output-volume': 1,
@@ -602,8 +602,8 @@ def setup_args():
     parser.add_argument("--latents-lean-and-mean", action='store_true', default=default_arguments['latents-lean-and-mean'], help="Exports the bare essentials for latents.")
     parser.add_argument("--voice-fixer", action='store_true', default=default_arguments['voice-fixer'], help="Uses python module 'voicefixer' to improve audio quality, if available.")
     parser.add_argument("--voice-fixer-use-cuda", action='store_true', default=default_arguments['voice-fixer-use-cuda'], help="Hints to voicefixer to use CUDA, if available.")
-    parser.add_argument("--cond-latent-max-chunk-size", default=default_arguments['cond-latent-max-chunk-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
-    parser.add_argument("--sample-batch-size", default=default_arguments['sample-batch-size'], type=int, help="Sets an upper limit to audio chunk size when computing conditioning latents")
+    parser.add_argument("--force-cpu-for-conditioning-latents", default=default_arguments['force-cpu-for-conditioning-latents'], action='store_true', help="Forces computing conditional latents to be done on the CPU (if you constantyl OOM on low chunk counts)")
+    parser.add_argument("--sample-batch-size", default=default_arguments['sample-batch-size'], type=int, help="Sets how many batches to use during the autoregressive samples pass")
     parser.add_argument("--concurrency-count", type=int, default=default_arguments['concurrency-count'], help="How many Gradio events to process at once")
     parser.add_argument("--output-sample-rate", type=int, default=default_arguments['output-sample-rate'], help="Sample rate to resample the output to (from 24KHz)")
     parser.add_argument("--output-volume", type=float, default=default_arguments['output-volume'], help="Adjusts volume of output")
@@ -916,7 +916,7 @@ def setup_gradio():
                     gr.Button(value="Reload TTS").click(reload_tts)
                 with gr.Column():
                     exec_inputs = exec_inputs + [
-                        gr.Number(label="Voice Latents Max Chunk Size", precision=0, value=args.cond_latent_max_chunk_size),
+                        gr.Number(label="Voice Latents Max Chunk Size", precision=0, value=args.force_cpu_for_conditioning_latents),
                         gr.Number(label="Sample Batch Size", precision=0, value=args.sample_batch_size),
                         gr.Number(label="Concurrency Count", precision=0, value=args.concurrency_count),
                         gr.Number(label="Ouptut Sample Rate", precision=0, value=args.output_sample_rate),

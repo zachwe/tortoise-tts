@@ -294,7 +294,7 @@ class TextToSpeech:
         if self.preloaded_tensors:
             self.cvvp = self.cvvp.to(self.device)
 
-    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, slices=1, max_chunk_size=None):
+    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, slices=1, max_chunk_size=None, force_cpu=False):
         """
         Transforms one or more voice_samples into a tuple (autoregressive_conditioning_latent, diffusion_conditioning_latent).
         These are expressive learned latents that encode aspects of the provided clips like voice, intonation, and acoustic
@@ -303,7 +303,9 @@ class TextToSpeech:
         """
         with torch.no_grad():
             # computing conditional latents requires being done on the CPU if using DML because M$ still hasn't implemented some core functions
-            device = torch.device('cpu') if get_device_name() == "dml" else self.device
+            if get_device_name() == "dml":
+                force_cpu = True
+            device = torch.device('cpu') if force_cpu else self.device
 
             if not isinstance(voice_samples, list):
                 voice_samples = [voice_samples]
@@ -370,6 +372,8 @@ class TextToSpeech:
                 self.diffusion = self.diffusion.to(self.device)
             else:
                 self.diffusion = self.diffusion.cpu()
+
+
 
         if return_mels:
             return auto_latent, diffusion_latent, auto_conds, diffusion_conds
