@@ -719,7 +719,7 @@ def setup_gradio():
                         inputs=None,
                         outputs=voice
                     )
-                    voice_latents_chunks = gr.Slider(label="Voice Chunks", minimum=1, maximum=32, value=1, step=1)
+                    voice_latents_chunks = gr.Slider(label="Voice Chunks", minimum=1, maximum=64, value=1, step=1)
                     recompute_voice_latents = gr.Button(value="(Re)Compute Voice Latents")
                     recompute_voice_latents.click(compute_latents,
                         inputs=[
@@ -836,7 +836,7 @@ def setup_gradio():
                         if file[-4:] != ".wav":
                             continue
 
-                        metadata, _ = read_generate_settings(f"{outdir}/{file}", read_latents=False, use_json=True)
+                        metadata, _ = read_generate_settings(f"{outdir}/{file}", read_latents=False)
                         if metadata is None:
                             continue
                             
