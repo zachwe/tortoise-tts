@@ -23,10 +23,10 @@ def get_device_name():
 
     name = 'cpu'
 
-    if has_dml():
-        name = 'dml'
-    elif torch.cuda.is_available():
+    if torch.cuda.is_available():
         name = 'cuda'
+    elif has_dml():
+        name = 'dml'
 
     return name
 
@@ -67,8 +67,7 @@ def get_device_batch_size():
         return 4
     return 1
 
-def get_device_count():
-    name = get_device_name()
+def get_device_count(name=get_device_name()):
     if name == "cuda":
         return torch.cuda.device_count()
     if name == "dml":
