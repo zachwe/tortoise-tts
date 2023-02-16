@@ -29,10 +29,8 @@ from tortoise.utils.wav2vec_alignment import Wav2VecAlignment
 from tortoise.utils.device import get_device, get_device_name, get_device_batch_size
 
 pbar = None
-
 STOP_SIGNAL = False
-
-MODELS_DIR = os.environ.get('TORTOISE_MODELS_DIR', os.path.realpath('./models/tortoise/'))
+MODELS_DIR = os.environ.get('TORTOISE_MODELS_DIR', os.path.realpath(os.path.join(os.getcwd(), './models/tortoise/')))
 MODELS = {
     'autoregressive.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/autoregressive.pth',
     'classifier.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/classifier.pth',
