@@ -18,7 +18,7 @@ def set_device_name(name):
 
 def get_device_name():
     global DEVICE_OVERRIDE
-    if DEVICE_OVERRIDE is not None:
+    if DEVICE_OVERRIDE is not None and DEVICE_OVERRIDE != "":
         return DEVICE_OVERRIDE
 
     name = 'cpu'
