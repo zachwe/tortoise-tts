@@ -1,5 +1,14 @@
 import webui as mrq
 
+if 'XDG_CACHE_HOME' not in os.environ:
+    os.environ['XDG_CACHE_HOME'] = os.path.realpath('./models/')
+
+if 'TORTOISE_MODELS_DIR' not in os.environ:
+    os.environ['TORTOISE_MODELS_DIR'] = os.path.realpath('./models/tortoise/')
+
+if 'TRANSFORMERS_CACHE' not in os.environ:
+    os.environ['TRANSFORMERS_CACHE'] = os.path.realpath('./models/transformers/')
+
 if __name__ == "__main__":
     mrq.args = mrq.setup_args()
 
