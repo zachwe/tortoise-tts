@@ -13,7 +13,3 @@ threadpoolctl
 appdirs
 numpy
 numba
-gradio
-music-tag
-k-diffusion
-voicefixer
