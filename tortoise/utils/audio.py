@@ -77,7 +77,7 @@ def dynamic_range_decompression(x, C=1):
     return torch.exp(x) / C
 
 
-def get_voices(extra_voice_dirs=[]):
+def get_voices(extra_voice_dirs=[], load_latents=True):
     dirs = [get_voice_dir()] + extra_voice_dirs
     voices = {}
     for d in dirs:
@@ -85,7 +85,9 @@ def get_voices(extra_voice_dirs=[]):
         for sub in subs:
             subj = os.path.join(d, sub)
             if os.path.isdir(subj):
-                voices[sub] = list(glob(f'{subj}/*.wav')) + list(glob(f'{subj}/*.mp3')) + list(glob(f'{subj}/*.pth'))
+                voices[sub] = list(glob(f'{subj}/*.wav')) + list(glob(f'{subj}/*.mp3'))
+                if load_latents:
+                    voices[sub] = voices[sub] + list(glob(f'{subj}/*.pth'))
     return voices
 
 
@@ -93,7 +95,7 @@ def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050,
     if voice == 'random':
         return None, None
 
-    voices = get_voices(extra_voice_dirs)
+    voices = get_voices(extra_voice_dirs=extra_voice_dirs, load_latents=load_latents)
     paths = voices[voice]
 
     mtime = 0
