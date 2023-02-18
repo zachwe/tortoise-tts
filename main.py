@@ -1,6 +1,8 @@
 import os
 import webui as mrq
 
+print('DEPRECATION WARNING: this repo has been refractored to focus entirely on tortoise-tts. Please migrate to https://git.ecker.tech/mrq/ai-voice-cloning if you seek new features.')
+
 if 'TORTOISE_MODELS_DIR' not in os.environ:
     os.environ['TORTOISE_MODELS_DIR'] = os.path.realpath(os.path.join(os.getcwd(), './models/tortoise/'))
 
