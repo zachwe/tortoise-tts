@@ -281,7 +281,7 @@ class TextToSpeech:
 
     def load_autoregressive_model(self, autoregressive_model_path):
         previous_path = self.autoregressive_model_path
-        self.autoregressive_model_path = autoregressive_model_path if autoregressive_model_path and os.path.exists(autoregressive_model_path) else get_model_path('autoregressive.pth', models_dir)
+        self.autoregressive_model_path = autoregressive_model_path if autoregressive_model_path and os.path.exists(autoregressive_model_path) else get_model_path('autoregressive.pth', self.models_dir)
 
         del self.autoregressive
         self.autoregressive = UnifiedVoice(max_mel_tokens=604, max_text_tokens=402, max_conditioning_inputs=2, layers=30,
