@@ -11,6 +11,7 @@ from tortoise.utils.typical_sampling import TypicalLogitsWarper
 
 from tortoise.utils.device import get_device_count
 
+import tortoise.utils.torch_intermediary as ml
 
 def null_position_embeddings(range, dim):
     return torch.zeros((range.shape[0], range.shape[1], dim), device=range.device)
@@ -221,7 +222,8 @@ class ConditioningEncoder(nn.Module):
 class LearnedPositionEmbeddings(nn.Module):
     def __init__(self, seq_len, model_dim, init=.02):
         super().__init__()
-        self.emb = nn.Embedding(seq_len, model_dim)
+        # ml.Embedding
+        self.emb = ml.Embedding(seq_len, model_dim)
         # Initializing this way is standard for GPT-2
         self.emb.weight.data.normal_(mean=0.0, std=init)
 
@@ -321,9 +323,11 @@ class UnifiedVoice(nn.Module):
         self.max_conditioning_inputs = max_conditioning_inputs
         self.mel_length_compression = mel_length_compression
         self.conditioning_encoder = ConditioningEncoder(80, model_dim, num_attn_heads=heads)
-        self.text_embedding = nn.Embedding(self.number_text_tokens*types+1, model_dim)
+        # ml.Embedding
+        self.text_embedding = ml.Embedding(self.number_text_tokens*types+1, model_dim)
         if use_mel_codes_as_input:
-            self.mel_embedding = nn.Embedding(self.number_mel_codes, model_dim)
+            # ml.Embedding
+            self.mel_embedding = ml.Embedding(self.number_mel_codes, model_dim)
         else:
             self.mel_embedding = MelEncoder(model_dim, resblocks_per_reduction=1)
         self.gpt, self.mel_pos_embedding, self.text_pos_embedding, self.mel_layer_pos_embedding, self.text_layer_pos_embedding = \
@@ -336,8 +340,10 @@ class UnifiedVoice(nn.Module):
             self.text_solo_embedding = 0
 
         self.final_norm = nn.LayerNorm(model_dim)
-        self.text_head = nn.Linear(model_dim, self.number_text_tokens*types+1)
-        self.mel_head = nn.Linear(model_dim, self.number_mel_codes)
+        # nn.Linear
+        self.text_head = ml.Linear(model_dim, self.number_text_tokens*types+1)
+        # nn.Linear
+        self.mel_head = ml.Linear(model_dim, self.number_mel_codes)
 
         # Initialize the embeddings per the GPT-2 scheme
         embeddings = [self.text_embedding]

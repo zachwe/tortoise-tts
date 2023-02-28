@@ -221,6 +221,16 @@ class TextToSpeech:
         if device is None:
             device = get_device(verbose=True)
 
+        try:
+            import tortoise.utils.torch_intermediary as ml
+            if ml.OVERRIDE_ADAM:
+                print("Using BitsAndBytes ADAMW optimizations")
+            else:
+                print("NOT using BitsAndBytes ADAMW optimizations")
+        except Exception as e:
+            print(e)
+            pass
+
         self.input_sample_rate = input_sample_rate
         self.output_sample_rate = output_sample_rate
         self.minor_optimizations = minor_optimizations
