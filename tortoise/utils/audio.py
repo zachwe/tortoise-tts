@@ -91,25 +91,28 @@ def get_voices(extra_voice_dirs=[], load_latents=True):
     return voices
 
 
-def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050, device='cpu'):
+def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050, device='cpu', model_hash=None):
     if voice == 'random':
         return None, None
 
     voices = get_voices(extra_voice_dirs=extra_voice_dirs, load_latents=load_latents)
-    paths = voices[voice]
 
+    paths = voices[voice]
     mtime = 0
-    voices = []
+    
     latent = None
-    for file in paths:
-        if file[-16:] == "cond_latents.pth":
-            latent = file
-        elif file[-4:] == ".pth":
-            {}
-            # noop
+    voices = []
+
+    for path in paths:
+        filename = os.path.basename(path)
+        if filename[-4:] == ".pth" and filename[:12] == "cond_latents":
+            if not model_hash and filename == "cond_latents.pth":
+                latent = path
+            elif model_hash and filename == f"cond_latents_{model_hash[:8]}.pth":
+                latent = path
         else:
-            voices.append(file)
-            mtime = max(mtime, os.path.getmtime(file))
+            voices.append(path)
+            mtime = max(mtime, os.path.getmtime(path))
 
     if load_latents and latent is not None:
         if os.path.getmtime(latent) > mtime:

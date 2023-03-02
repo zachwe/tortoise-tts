@@ -42,6 +42,32 @@ MODELS = {
     'rlg_diffuser.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/rlg_diffuser.pth',
 }
 
+def hash_file(path, algo="md5", buffer_size=0):
+    import hashlib
+
+    hash = None
+    if algo == "md5":
+        hash = hashlib.md5()
+    elif algo == "sha1":
+        hash = hashlib.sha1()
+    else:
+        raise Exception(f'Unknown hash algorithm specified: {algo}')
+
+    if not os.path.exists(path):
+        raise Exception(f'Path not found: {path}')
+
+    with open(path, 'rb') as f:
+        if buffer_size > 0:
+            while True:
+                data = f.read(buffer_size)
+                if not data:
+                    break
+                hash.update(data)
+        else:
+            hash.update(f.read())
+
+    return "{0}".format(hash.hexdigest())
+
 def check_for_kill_signal():
     global STOP_SIGNAL
     if STOP_SIGNAL:
@@ -221,16 +247,6 @@ class TextToSpeech:
         if device is None:
             device = get_device(verbose=True)
 
-        try:
-            import tortoise.utils.torch_intermediary as ml
-            if ml.OVERRIDE_ADAM:
-                print("Using BitsAndBytes ADAMW optimizations")
-            else:
-                print("NOT using BitsAndBytes ADAMW optimizations")
-        except Exception as e:
-            print(e)
-            pass
-
         self.input_sample_rate = input_sample_rate
         self.output_sample_rate = output_sample_rate
         self.minor_optimizations = minor_optimizations
@@ -252,6 +268,7 @@ class TextToSpeech:
         self.tokenizer = VoiceBpeTokenizer()
 
         self.autoregressive_model_path = autoregressive_model_path if autoregressive_model_path and os.path.exists(autoregressive_model_path) else get_model_path('autoregressive.pth', models_dir)
+        self.autoregressive_model_hash = hash_file(self.autoregressive_model_path)
 
         if os.path.exists(f'{models_dir}/autoregressive.ptt'):
             # Assume this is a traced directory.
@@ -295,6 +312,7 @@ class TextToSpeech:
     def load_autoregressive_model(self, autoregressive_model_path):
         previous_path = self.autoregressive_model_path
         self.autoregressive_model_path = autoregressive_model_path if autoregressive_model_path and os.path.exists(autoregressive_model_path) else get_model_path('autoregressive.pth', self.models_dir)
+        self.autoregressive_model_hash = hash_file(self.autoregressive_model_path)
 
         del self.autoregressive
         self.autoregressive = UnifiedVoice(max_mel_tokens=604, max_text_tokens=402, max_conditioning_inputs=2, layers=30,
@@ -305,6 +323,7 @@ class TextToSpeech:
         self.autoregressive.post_init_gpt2_config(kv_cache=self.use_kv_cache)
         if self.preloaded_tensors:
             self.autoregressive = self.autoregressive.to(self.device)
+
 
         return previous_path != self.autoregressive_model_path
 
