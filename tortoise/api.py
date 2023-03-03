@@ -5,6 +5,7 @@ import gc
 
 from time import time
 from urllib import request
+from urllib.request import ProxyHandler, build_opener, install_opener
 
 import torch
 import torch.nn.functional as F
@@ -21,6 +22,8 @@ from tortoise.models.clvp import CLVP
 from tortoise.models.cvvp import CVVP
 from tortoise.models.random_latent_generator import RandomLatentConverter
 from tortoise.models.vocoder import UnivNetGenerator
+from tortoise.models.bigvgan import BigVGAN
+
 from tortoise.utils.audio import wav_to_univnet_mel, denormalize_tacotron_mel
 from tortoise.utils.diffusion import SpacedDiffusion, space_timesteps, get_named_beta_schedule
 from tortoise.utils.tokenizer import VoiceBpeTokenizer
@@ -40,6 +43,7 @@ MODELS = {
     'vocoder.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/vocoder.pth',
     'rlg_auto.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/rlg_auto.pth',
     'rlg_diffuser.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/rlg_diffuser.pth',
+    'bigvgan_base_24khz_100band.pth': 'https://cdn.ecker.tech/models/bigvgan_base_24khz_100band.pth',
 }
 
 def hash_file(path, algo="md5", buffer_size=0):
@@ -110,6 +114,11 @@ def download_models(specific_models=None):
         if os.path.exists(model_path):
             continue
         print(f'Downloading {model_name} from {url}...')
+
+        proxy = ProxyHandler({})
+        opener = build_opener(proxy)
+        opener.addheaders = [('User-Agent','mrq/AI-Voice-Cloning')]
+        install_opener(opener)
         request.urlretrieve(url, model_path, show_progress)
         print('Done.')
 
@@ -227,12 +236,19 @@ def classify_audio_clip(clip):
     results = F.softmax(classifier(clip), dim=-1)
     return results[0][0]
 
+def load_checkpoint(filepath, device):
+    assert os.path.isfile(filepath)
+    print("Loading '{}'".format(filepath))
+    checkpoint_dict = torch.load(filepath, map_location=device)
+    print("Complete.")
+    return checkpoint_dict
+
 class TextToSpeech:
     """
     Main entry point into Tortoise.
     """
 
-    def __init__(self, autoregressive_batch_size=None, models_dir=MODELS_DIR, enable_redaction=True, device=None, minor_optimizations=True, input_sample_rate=22050, output_sample_rate=24000, autoregressive_model_path=None):
+    def __init__(self, autoregressive_batch_size=None, models_dir=MODELS_DIR, enable_redaction=True, device=None, minor_optimizations=True, input_sample_rate=22050, output_sample_rate=24000, autoregressive_model_path=None, use_bigvgan=True):
         """
         Constructor
         :param autoregressive_batch_size: Specifies how many samples to generate per batch. Lower this if you are seeing
@@ -295,8 +311,13 @@ class TextToSpeech:
         self.clvp.load_state_dict(torch.load(get_model_path('clvp2.pth', models_dir)))
         self.cvvp = None # CVVP model is only loaded if used.
 
-        self.vocoder = UnivNetGenerator().cpu()
-        self.vocoder.load_state_dict(torch.load(get_model_path('vocoder.pth', models_dir), map_location=torch.device('cpu'))['model_g'])
+        if use_bigvgan:
+            self.vocoder = BigVGAN().cpu()
+            state_dict_bigvgan = load_checkpoint(get_model_path('bigvgan_base_24khz_100band.pth', models_dir), self.device)
+            self.vocoder.load_state_dict(state_dict_bigvgan['generator'])
+        else:
+            self.vocoder = UnivNetGenerator().cpu()
+            self.vocoder.load_state_dict(torch.load(get_model_path('vocoder.pth', models_dir), map_location=torch.device('cpu'))['model_g'])
         self.vocoder.eval(inference=True)
 
         # Random latent generators (RLGs) are loaded lazily.
