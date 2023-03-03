@@ -312,6 +312,7 @@ class TextToSpeech:
         self.cvvp = None # CVVP model is only loaded if used.
 
         if use_bigvgan:
+            # credit https://github.com/deviandiceto / https://git.ecker.tech/mrq/ai-voice-cloning/issues/52
             self.vocoder = BigVGAN().cpu()
             state_dict_bigvgan = load_checkpoint(get_model_path('bigvgan_base_24khz_100band.pth', models_dir), self.device)
             self.vocoder.load_state_dict(state_dict_bigvgan['generator'])
