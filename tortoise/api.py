@@ -542,7 +542,7 @@ class TextToSpeech:
         if autoregressive_model is None:
             autoregressive_model = self.autoregressive_model_path
         elif autoregressive_model != self.autoregressive_model_path:
-            load_autoregressive_model(autoregressive_model)
+            self.load_autoregressive_model(autoregressive_model)
 
         text_tokens = torch.IntTensor(self.tokenizer.encode(text)).unsqueeze(0).to(self.device)
         text_tokens = F.pad(text_tokens, (0, 1))  # This may not be necessary.
