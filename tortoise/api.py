@@ -256,6 +256,7 @@ class TextToSpeech:
         if device is None:
             device = get_device(verbose=True)
 
+        self.version = [2,4,4] # to-do, autograb this from setup.py, or have setup.py autograb this
         self.input_sample_rate = input_sample_rate
         self.output_sample_rate = output_sample_rate
         self.minor_optimizations = minor_optimizations
@@ -475,6 +476,7 @@ class TextToSpeech:
             # autoregressive generation parameters follow
             num_autoregressive_samples=512, temperature=.8, length_penalty=1, repetition_penalty=2.0, top_p=.8, max_mel_tokens=500,
             sample_batch_size=None,
+            autoregressive_model=None,
             # CVVP parameters follow
             cvvp_amount=.0,
             # diffusion generation parameters follow
@@ -536,6 +538,11 @@ class TextToSpeech:
 
         self.diffusion.enable_fp16 = half_p
         deterministic_seed = self.deterministic_state(seed=use_deterministic_seed)
+
+        if autoregressive_model is None:
+            autoregressive_model = self.autoregressive_model_path
+        elif autoregressive_model != self.autoregressive_model_path:
+            load_autoregressive_model(autoregressive_model)
 
         text_tokens = torch.IntTensor(self.tokenizer.encode(text)).unsqueeze(0).to(self.device)
         text_tokens = F.pad(text_tokens, (0, 1))  # This may not be necessary.
