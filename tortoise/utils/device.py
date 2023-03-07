@@ -61,10 +61,8 @@ def get_device_batch_size():
         available = psutil.virtual_memory()[4]
 
     vram = available / (1024 ** 3)
-    if vram > 18:
-        return 32
-    if vram > 16:
-        return 24
+    # I'll need to rework this better
+    # simply adding more tiers clearly is not a good way to go about it
     if vram > 14:
         return 16
     elif vram > 10:
