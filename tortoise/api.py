@@ -43,8 +43,12 @@ MODELS = {
     'vocoder.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/vocoder.pth',
     'rlg_auto.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/rlg_auto.pth',
     'rlg_diffuser.pth': 'https://huggingface.co/jbetker/tortoise-tts-v2/resolve/main/.models/rlg_diffuser.pth',
+    
     'bigvgan_base_24khz_100band.pth': 'https://huggingface.co/ecker/tortoise-tts-models/resolve/main/models/bigvgan_base_24khz_100band.pth',
-    #'bigvgan_24khz_100band.pth': 'https://huggingface.co/ecker/tortoise-tts-models/resolve/main/models/bigvgan_24khz_100band.pth',
+    'bigvgan_24khz_100band.pth': 'https://huggingface.co/ecker/tortoise-tts-models/resolve/main/models/bigvgan_24khz_100band.pth',
+
+    'bigvgan_base_24khz_100band.json': 'https://huggingface.co/ecker/tortoise-tts-models/resolve/main/models/bigvgan_base_24khz_100band.json',
+    'bigvgan_24khz_100band.json': 'https://huggingface.co/ecker/tortoise-tts-models/resolve/main/models/bigvgan_24khz_100band.json',
 }
 
 def hash_file(path, algo="md5", buffer_size=0):
@@ -361,7 +365,12 @@ class TextToSpeech:
             self.vocoder_model_path = 'bigvgan_24khz_100band.pth'
             if f'{vocoder_model}.pth' in MODELS:
                 self.vocoder_model_path = f'{vocoder_model}.pth'
-            self.vocoder = BigVGAN().cpu()
+            vocoder_config = 'bigvgan_24khz_100band.json'
+            if f'{vocoder_model}.json' in MODELS:
+                vocoder_config = f'{vocoder_model}.json'
+            vocoder_config = get_model_path(vocoder_config, self.models_dir)
+
+            self.vocoder = BigVGAN(config=vocoder_config).cpu()
         #elif vocoder_model == "univnet":
         else:
             vocoder_key = 'model_g'

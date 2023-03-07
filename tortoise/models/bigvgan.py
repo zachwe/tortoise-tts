@@ -129,14 +129,27 @@ class AttrDict(dict):
 
 class BigVGAN(nn.Module):
     # this is our main BigVGAN model. Applies anti-aliased periodic activation for resblocks.
-    def __init__(self):
+    def __init__(self, config=None, data=None):
         super(BigVGAN, self).__init__()
 
+        """
         with open(os.path.join(os.path.dirname(__file__), 'config.json'), 'r') as f:
             data = f.read()
+        """
+        if config and data is None:
+            with open(config, 'r') as f:
+                data = f.read()
+            jsonConfig = json.loads(data)
+        elif data is not None:
+            if isinstance(data, str):
+                jsonConfig = json.loads(data)
+            else:
+                jsonConfig = data
+        else:
+            raise Exception("no config specified")
+
 
         global h
-        jsonConfig = json.loads(data)
         h = AttrDict(jsonConfig)
 
         self.mel_channel = h.num_mels
