@@ -485,7 +485,7 @@ class UnifiedVoice(nn.Module):
                          max_generate_length=None, typical_sampling=False, typical_mass=.9, **hf_generate_kwargs):
         seq_length = self.max_mel_tokens + self.max_text_tokens + 2
         if not hasattr(self, 'inference_model'):
-            self.post_init_gpt2_config(kv_cache=self.kv_cachepost_init_gpt2_config)
+            self.post_init_gpt2_config(kv_cache=self.kv_cache)
             
 
         text_inputs = F.pad(text_inputs, (0, 1), value=self.stop_text_token)
