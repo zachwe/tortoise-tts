@@ -3,6 +3,7 @@ import psutil
 import importlib
 
 DEVICE_OVERRIDE = None
+DEVICE_BATCH_SIZE_MAP = [(14, 16), (10,8), (7,4)]
 
 def has_dml():
     loader = importlib.find_loader('torch_directml')
@@ -60,14 +61,9 @@ def get_device_vram( name=get_device_name() ):
 def get_device_batch_size(name=None):
     vram = get_device_vram(name)
 
-    # I'll need to rework this better
-    # simply adding more tiers clearly is not a good way to go about it
-    if vram > 14:
-        return 16
-    elif vram > 10:
-        return 8
-    elif vram > 7:
-        return 4
+    for k, v in DEVICE_BATCH_SIZE_MAP:
+        if vram > k:
+            return v
     return 1
 
 def get_device_count(name=get_device_name()):
