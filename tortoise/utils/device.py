@@ -55,12 +55,11 @@ def get_device_vram( name=get_device_name() ):
     elif name == "cpu":
         available = psutil.virtual_memory()[4]
 
-    return available
+    return available / (1024 ** 3)
 
 def get_device_batch_size(name=None):
-    available = get_device_vram(name)
+    vram = get_device_vram(name)
 
-    vram = available / (1024 ** 3)
     # I'll need to rework this better
     # simply adding more tiers clearly is not a good way to go about it
     if vram > 14:
