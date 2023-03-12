@@ -5,6 +5,29 @@ import importlib
 DEVICE_OVERRIDE = None
 DEVICE_BATCH_SIZE_MAP = [(14, 16), (10,8), (7,4)]
 
+from inspect import currentframe, getframeinfo
+import gc
+
+def do_gc():
+    gc.collect()
+    try:
+        torch.cuda.empty_cache()
+    except Exception as e:
+        pass
+
+def print_stats(collect=False):
+    cf = currentframe().f_back
+    msg = f'{getframeinfo(cf).filename}:{cf.f_lineno}'
+
+    if collect:
+        do_gc()
+
+    tot = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+    res = torch.cuda.memory_reserved(0) / (1024 ** 3)
+    alloc = torch.cuda.memory_allocated(0) / (1024 ** 3)
+    print("[{}] Total: {:.3f} | Reserved: {:.3f} | Allocated: {:.3f} | Free: {:.3f}".format( msg, tot, res, alloc, tot-res ))
+
+
 def has_dml():
     loader = importlib.find_loader('torch_directml')
     if loader is None:

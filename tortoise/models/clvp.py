@@ -9,6 +9,8 @@ from tortoise.models.xtransformers import Encoder
 
 import tortoise.utils.torch_intermediary as ml
 
+from tortoise.utils.device import print_stats, do_gc
+
 def exists(val):
     return val is not None
 
@@ -124,14 +126,13 @@ class CLVP(nn.Module):
             text_emb += self.text_pos_emb(torch.arange(text.shape[1], device=device))
             speech_emb += self.speech_pos_emb(torch.arange(speech_emb.shape[1], device=device))
 
-        enc_text = self.text_transformer(text_emb, mask=text_mask)
-        enc_speech = self.speech_transformer(speech_emb, mask=voice_mask)
+        
+        text_latents = self.to_text_latent(masked_mean(self.text_transformer(text_emb, mask=text_mask), text_mask, dim=1))
 
-        text_latents = masked_mean(enc_text, text_mask, dim=1)
-        speech_latents = masked_mean(enc_speech, voice_mask, dim=1)
-
-        text_latents = self.to_text_latent(text_latents)
-        speech_latents = self.to_speech_latent(speech_latents)
+        # on ROCm at least, allocated VRAM spikes here
+        do_gc()
+        speech_latents = self.to_speech_latent(masked_mean(self.speech_transformer(speech_emb, mask=voice_mask), voice_mask, dim=1))
+        do_gc()
 
         text_latents, speech_latents = map(lambda t: F.normalize(t, p=2, dim=-1), (text_latents, speech_latents))
 
