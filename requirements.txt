@@ -4,10 +4,10 @@ transformers==4.19
 tokenizers
 inflect
 progressbar
-einops==0.6.0
+einops
 unidecode
 scipy
-librosa==0.8.0
+librosa==0.8.1
 torchaudio
 threadpoolctl
 appdirs
