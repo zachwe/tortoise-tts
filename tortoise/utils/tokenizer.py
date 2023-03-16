@@ -170,7 +170,11 @@ DEFAULT_VOCAB_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), '
 
 
 class VoiceBpeTokenizer:
-    def __init__(self, vocab_file=DEFAULT_VOCAB_FILE):
+    def __init__(self, vocab_file=DEFAULT_VOCAB_FILE, preprocess=None):
+        if preprocess is None:
+            self.preprocess = vocab_file[-8:] != "ipa.json"
+        else:
+            self.preprocess = preprocess
         if vocab_file is not None:
             self.tokenizer = Tokenizer.from_file(vocab_file)
 
@@ -179,7 +183,8 @@ class VoiceBpeTokenizer:
         return txt
 
     def encode(self, txt):
-        txt = self.preprocess_text(txt)
+        if self.preprocess:
+          txt = self.preprocess_text(txt)
         txt = txt.replace(' ', '[SPACE]')
         return self.tokenizer.encode(txt).ids
 
