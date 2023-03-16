@@ -1,5 +1,6 @@
 import os
 import re
+import json
 
 import inflect
 import torch
@@ -172,7 +173,9 @@ DEFAULT_VOCAB_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), '
 class VoiceBpeTokenizer:
     def __init__(self, vocab_file=DEFAULT_VOCAB_FILE, preprocess=None):
         if preprocess is None:
-            self.preprocess = vocab_file[-8:] != "ipa.json"
+            with open(vocab_file, 'r', encoding='utf-8') as f:
+              vocab = json.load(f)
+              self.preprocess = 'pre_tokenizer' in vocab and vocab['pre_tokenizer']
         else:
             self.preprocess = preprocess
         if vocab_file is not None:
