@@ -172,17 +172,33 @@ DEFAULT_VOCAB_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)), '
 
 class VoiceBpeTokenizer:
     def __init__(self, vocab_file=DEFAULT_VOCAB_FILE, preprocess=None):
+        with open(vocab_file, 'r', encoding='utf-8') as f:
+          vocab = json.load(f)
+
+        self.language = vocab['model']['language'] if 'language' in vocab['model'] else None
+
         if preprocess is None:
-            with open(vocab_file, 'r', encoding='utf-8') as f:
-              vocab = json.load(f)
-              self.preprocess = 'pre_tokenizer' in vocab and vocab['pre_tokenizer']
+          self.preprocess = 'pre_tokenizer' in vocab and vocab['pre_tokenizer']
         else:
             self.preprocess = preprocess
         if vocab_file is not None:
             self.tokenizer = Tokenizer.from_file(vocab_file)
 
     def preprocess_text(self, txt):
-        txt = english_cleaners(txt)
+        if self.language == 'ja':
+          import pykakasi
+
+          kks = pykakasi.kakasi()
+          results = kks.convert(txt)
+          words = []
+
+          for result in results:
+            words.append(result['kana'])
+
+          txt = " ".join(words)
+          txt = basic_cleaners(txt)
+        else:
+          txt = english_cleaners(txt)
         return txt
 
     def encode(self, txt):
