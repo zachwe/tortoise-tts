@@ -267,8 +267,9 @@ class TextToSpeech:
 
     def __init__(self, autoregressive_batch_size=None, models_dir=MODELS_DIR, enable_redaction=True, device=None,
         minor_optimizations=True,
+        unsqueeze_sample_batches=False,
         input_sample_rate=22050, output_sample_rate=24000,
-        autoregressive_model_path=None, diffusion_model_path=None, vocoder_model=None, tokenizer_json=None
+        autoregressive_model_path=None, diffusion_model_path=None, vocoder_model=None, tokenizer_json=None,
     ):
         """
         Constructor
@@ -289,6 +290,7 @@ class TextToSpeech:
         self.input_sample_rate = input_sample_rate
         self.output_sample_rate = output_sample_rate
         self.minor_optimizations = minor_optimizations
+        self.unsqueeze_sample_batches = unsqueeze_sample_batches
 
         # for clarity, it's simpler to split these up and just predicate them on requesting VRAM-consuming optimizations
         self.preloaded_tensors = minor_optimizations
@@ -697,8 +699,14 @@ class TextToSpeech:
             if not self.preloaded_tensors:
                 self.autoregressive = migrate_to_device( self.autoregressive, 'cpu' )
 
-            clip_results = []
+            if self.unsqueeze_sample_batches:
+                new_samples = []
+                for batch in samples:
+                     for i in range(batch.shape[0]):
+                        new_samples.append(batch[i].unsqueeze(0))
+                samples = new_samples
 
+            clip_results = []
             if auto_conds is not None:
                 auto_conditioning = migrate_to_device( auto_conditioning, self.device )
 
