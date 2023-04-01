@@ -2,6 +2,7 @@ import os
 from glob import glob
 
 import librosa
+import soundfile as sf
 import torch
 import torchaudio
 import numpy as np
@@ -23,6 +24,9 @@ def load_audio(audiopath, sampling_rate):
         audio, lsr = torchaudio.load(audiopath)
     elif audiopath[-4:] == '.mp3':
         audio, lsr = librosa.load(audiopath, sr=sampling_rate)
+        audio = torch.FloatTensor(audio)
+    elif audiopath[-5:] == '.flac':
+        audio, lsr = sf.read(audiopath)
         audio = torch.FloatTensor(audio)
     else:
         assert False, f"Unsupported audio format provided: {audiopath[-4:]}"
@@ -85,7 +89,7 @@ def get_voices(extra_voice_dirs=[], load_latents=True):
         for sub in subs:
             subj = os.path.join(d, sub)
             if os.path.isdir(subj):
-                voices[sub] = list(glob(f'{subj}/*.wav')) + list(glob(f'{subj}/*.mp3'))
+                voices[sub] = list(glob(f'{subj}/*.wav')) + list(glob(f'{subj}/*.mp3')) + list(glob(f'{subj}/*.flac'))
                 if load_latents:
                     voices[sub] = voices[sub] + list(glob(f'{subj}/*.pth'))
     return voices
