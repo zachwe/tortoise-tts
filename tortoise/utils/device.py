@@ -82,6 +82,7 @@ def get_device_vram( name=get_device_name() ):
     return available / (1024 ** 3)
 
 def get_device_batch_size(name=None):
+    name = get_device_name()
     vram = get_device_vram(name)
 
     if vram > 14:
