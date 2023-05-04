@@ -13,15 +13,7 @@ import math
 import numpy as np
 import torch
 import torch as th
-from tqdm import tqdm
-
-def tqdm_override(arr, verbose=False, progress=None, desc=None):
-    if verbose and desc is not None:
-        print(desc)
-        
-    if progress is None:
-        return tqdm(arr, disable=not verbose)
-    return progress.tqdm(arr, desc=f'{progress.msg_prefix} {desc}' if hasattr(progress, 'msg_prefix') else desc)
+from tqdm.auto import tqdm
 
 def normal_kl(mean1, logvar1, mean2, logvar2):
     """
@@ -556,7 +548,6 @@ class GaussianDiffusion:
         model_kwargs=None,
         device=None,
         verbose=False,
-        progress=None,
         desc=None
     ):
         """
@@ -589,7 +580,6 @@ class GaussianDiffusion:
             model_kwargs=model_kwargs,
             device=device,
             verbose=verbose,
-            progress=progress,
             desc=desc
         ):
             final = sample
@@ -606,7 +596,6 @@ class GaussianDiffusion:
         model_kwargs=None,
         device=None,
         verbose=False,
-        progress=None,
         desc=None
     ):
         """
@@ -626,7 +615,7 @@ class GaussianDiffusion:
             img = th.randn(*shape, device=device)
         indices = list(range(self.num_timesteps))[::-1]
 
-        for i in tqdm_override(indices, verbose=verbose, desc=desc, progress=progress):
+        for i in tqdm(indices, desc=desc):
             t = th.tensor([i] * shape[0], device=device)
             with th.no_grad():
                 out = self.p_sample(
@@ -741,7 +730,6 @@ class GaussianDiffusion:
         device=None,
         verbose=False,
         eta=0.0,
-        progress=None,
         desc=None,
     ):
         """
@@ -761,7 +749,6 @@ class GaussianDiffusion:
             device=device,
             verbose=verbose,
             eta=eta,
-            progress=progress,
             desc=desc
         ):
             final = sample
@@ -779,7 +766,6 @@ class GaussianDiffusion:
         device=None,
         verbose=False,
         eta=0.0,
-        progress=None,
         desc=None,
     ):
         """
@@ -798,10 +784,7 @@ class GaussianDiffusion:
         indices = list(range(self.num_timesteps))[::-1]
 
         if verbose:
-            # Lazy import so that we don't depend on tqdm.
-            from tqdm.auto import tqdm
-
-            indices = tqdm_override(indices, verbose=verbose, desc=desc, progress=progress)
+            indices = tqdm(indices, desc=desc)
 
         for i in indices:
             t = th.tensor([i] * shape[0], device=device)

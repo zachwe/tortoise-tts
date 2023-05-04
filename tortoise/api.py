@@ -83,16 +83,6 @@ def check_for_kill_signal():
         STOP_SIGNAL = False
         raise Exception("Kill signal detected")
 
-def tqdm_override(arr, verbose=False, progress=None, desc=None):
-    check_for_kill_signal()
-
-    if verbose and desc is not None:
-        print(desc)
-
-    if progress is None:
-        return tqdm(arr, disable=not verbose)
-    return progress.tqdm(arr, desc=f'{progress.msg_prefix} {desc}' if hasattr(progress, 'msg_prefix') else desc)
-
 def download_models(specific_models=None):
     """
     Call to download all the models that Tortoise uses.
@@ -205,7 +195,7 @@ def fix_autoregressive_output(codes, stop_token, complain=True):
     return codes
 
 
-def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True, progress=None, desc=None, sampler="P", input_sample_rate=22050, output_sample_rate=24000):
+def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True, desc=None, sampler="P", input_sample_rate=22050, output_sample_rate=24000):
     """
     Uses the specified diffusion model to convert discrete codes into a spectrogram.
     """
@@ -218,8 +208,7 @@ def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_la
         
         diffuser.sampler = sampler.lower()
         mel = diffuser.sample_loop(diffusion_model, output_shape, noise=noise,
-                                      model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings},
-                                     verbose=verbose, progress=progress, desc=desc)
+                                      model_kwargs={'precomputed_aligned_embeddings': precomputed_embeddings}, desc=desc)
 
         mel = denormalize_tacotron_mel(mel)[:,:,:output_seq_len]
         if get_device_name() == "dml":
@@ -459,7 +448,7 @@ class TextToSpeech:
         if self.preloaded_tensors:
             self.cvvp = migrate_to_device( self.cvvp, self.device )
 
-    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, progress=None, slices=1, max_chunk_size=None, force_cpu=False):
+    def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, slices=1, max_chunk_size=None, force_cpu=False):
         """
         Transforms one or more voice_samples into a tuple (autoregressive_conditioning_latent, diffusion_conditioning_latent).
         These are expressive learned latents that encode aspects of the provided clips like voice, intonation, and acoustic
@@ -503,7 +492,7 @@ class TextToSpeech:
             chunk_size = chunks[0].shape[-1]
 
             auto_conds = []
-            for chunk in tqdm_override(chunks, verbose=verbose, progress=progress, desc="Computing AR conditioning latents..."):
+            for chunk in tqdm(chunks, desc="Computing AR conditioning latents..."):
                 auto_conds.append(format_conditioning(chunk, device=device, sampling_rate=self.input_sample_rate, cond_length=chunk_size))
             auto_conds = torch.stack(auto_conds, dim=1)
 
@@ -512,7 +501,7 @@ class TextToSpeech:
             self.autoregressive = migrate_to_device( self.autoregressive, self.device if self.preloaded_tensors else 'cpu' )
             
             diffusion_conds = []
-            for chunk in tqdm_override(chunks, verbose=verbose, progress=progress, desc="Computing diffusion conditioning latents..."):
+            for chunk in tqdm(chunks, desc="Computing diffusion conditioning latents..."):
                 check_for_kill_signal()
                 chunk = pad_or_truncate(chunk, chunk_size)
                 cond_mel = wav_to_univnet_mel(migrate_to_device( chunk, device ), do_normalization=False, device=device)
@@ -576,7 +565,6 @@ class TextToSpeech:
             diffusion_sampler="P",
             breathing_room=8,
             half_p=False,
-            progress=None,
             **hf_generate_kwargs):
         """
         Produces an audio clip of the given text being spoken with the given reference voice.
@@ -681,7 +669,7 @@ class TextToSpeech:
             text_tokens = migrate_to_device( text_tokens, self.device )
 
             with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=half_p):
-                for b in tqdm_override(range(num_batches), verbose=verbose, progress=progress, desc="Generating autoregressive samples"):
+                for b in tqdm(range(num_batches), desc="Generating autoregressive samples"):
                     check_for_kill_signal()
                     codes = self.autoregressive.inference_speech(auto_conditioning, text_tokens,
                                                                  do_sample=True,
@@ -730,7 +718,7 @@ class TextToSpeech:
                         desc = f"Computing best candidates using CLVP {((1-cvvp_amount) * 100):2.0f}% and CVVP {(cvvp_amount * 100):2.0f}%"
 
                 
-                for batch in tqdm_override(samples, verbose=verbose, progress=progress, desc=desc):
+                for batch in tqdm(samples, desc=desc):
                     check_for_kill_signal()
                     for i in range(batch.shape[0]):
                         batch[i] = fix_autoregressive_output(batch[i], stop_mel_token)
@@ -815,7 +803,7 @@ class TextToSpeech:
                         break
 
                 mel = do_spectrogram_diffusion(self.diffusion, diffuser, latents, diffusion_conditioning,
-                                               temperature=diffusion_temperature, verbose=verbose, progress=progress, desc="Transforming autoregressive outputs into audio..", sampler=diffusion_sampler,
+                                               temperature=diffusion_temperature, desc="Transforming autoregressive outputs into audio..", sampler=diffusion_sampler,
                                                input_sample_rate=self.input_sample_rate, output_sample_rate=self.output_sample_rate)
 
                 wav = self.vocoder.inference(mel)
