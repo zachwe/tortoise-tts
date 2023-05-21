@@ -11,5 +11,5 @@ librosa==0.8.1
 torchaudio
 threadpoolctl
 appdirs
-numpy==1.23.5
+numpy<=1.23.5
 numba
