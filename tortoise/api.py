@@ -150,7 +150,7 @@ def load_discrete_vocoder_diffuser(trained_diffusion_steps=4000, desired_diffusi
                            model_var_type='learned_range', loss_type='mse', betas=get_named_beta_schedule('linear', trained_diffusion_steps),
                            conditioning_free=cond_free, conditioning_free_k=cond_free_k)
 
-
+@torch.inference_mode()
 def format_conditioning(clip, cond_length=132300, device='cuda', sampling_rate=22050):
     """
     Converts the given conditioning signal to a MEL spectrogram and clips it as expected by the models.
@@ -194,7 +194,7 @@ def fix_autoregressive_output(codes, stop_token, complain=True):
 
     return codes
 
-
+@torch.inference_mode()
 def do_spectrogram_diffusion(diffusion_model, diffuser, latents, conditioning_latents, temperature=1, verbose=True, desc=None, sampler="P", input_sample_rate=22050, output_sample_rate=24000):
     """
     Uses the specified diffusion model to convert discrete codes into a spectrogram.
@@ -453,6 +453,7 @@ class TextToSpeech:
         if self.preloaded_tensors:
             self.cvvp = migrate_to_device( self.cvvp, self.device )
 
+    @torch.inference_mode()
     def get_conditioning_latents(self, voice_samples, return_mels=False, verbose=False, slices=1, max_chunk_size=None, force_cpu=False, original_ar=False, original_diffusion=False):
         """
         Transforms one or more voice_samples into a tuple (autoregressive_conditioning_latent, diffusion_conditioning_latent).
@@ -578,6 +579,7 @@ class TextToSpeech:
         settings.update(kwargs) # allow overriding of preset settings with kwargs
         return self.tts(text, **settings)
 
+    @torch.inference_mode()
     def tts(self, text, voice_samples=None, conditioning_latents=None, k=1, verbose=True, use_deterministic_seed=None,
             return_deterministic_state=False,
             # autoregressive generation parameters follow

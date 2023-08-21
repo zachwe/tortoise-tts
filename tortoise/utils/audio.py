@@ -94,12 +94,72 @@ def get_voices(extra_voice_dirs=[], load_latents=True):
                     voices[sub] = voices[sub] + list(glob(f'{subj}/*.pth'))
     return voices
 
+def get_voice( name, dir=get_voice_dir(), load_latents=True, extensions=["wav", "mp3", "flac"] ):
+    subj = f'{dir}/{name}/'
+    if not os.path.isdir(subj):
+        return
+    files = os.listdir(subj)
+    
+    if load_latents:
+        extensions.append(".pth")
+
+    voice = []
+    for file in files:
+        ext = os.path.splitext(file)[-1][1:]
+        if ext not in extensions:
+            continue
+
+        voice.append(f'{subj}/{file}')
+
+    return sorted( voice )
+
+def get_voice_list(dir=get_voice_dir(), append_defaults=False, extensions=["wav", "mp3", "flac", "pth"]):
+    defaults = [ "random", "microphone" ]
+    os.makedirs(dir, exist_ok=True)
+    #res = sorted([d for d in os.listdir(dir) if d not in defaults and os.path.isdir(os.path.join(dir, d)) and len(os.listdir(os.path.join(dir, d))) > 0 ])
+
+    res = []
+    for name in os.listdir(dir):
+        if name in defaults:
+            continue
+        if not os.path.isdir(f'{dir}/{name}'):
+            continue
+        if len(os.listdir(os.path.join(dir, name))) == 0:
+            continue
+        files = get_voice( name, dir=dir, extensions=extensions )
+
+        if len(files) > 0:
+            res.append(name)
+        else:
+            for subdir in os.listdir(f'{dir}/{name}'):
+                if not os.path.isdir(f'{dir}/{name}/{subdir}'):
+                    continue
+                files = get_voice( f'{name}/{subdir}', dir=dir, extensions=extensions )
+                if len(files) == 0:
+                    continue
+                res.append(f'{name}/{subdir}')
+
+    res = sorted(res)
+    
+    if append_defaults:
+        res = res + defaults
+    
+    return res
+
+
+def _get_voices( dirs=[get_voice_dir()], load_latents=True ):
+    voices = {}
+    for dir in dirs:
+        voice_list = get_voice_list(dir=dir)
+        voices |= { name: get_voice(name=name, dir=dir, load_latents=load_latents) for name in voice_list }
+
+    return voices
 
 def load_voice(voice, extra_voice_dirs=[], load_latents=True, sample_rate=22050, device='cpu', model_hash=None):
     if voice == 'random':
         return None, None
 
-    voices = get_voices(extra_voice_dirs=extra_voice_dirs, load_latents=load_latents)
+    voices = _get_voices(dirs=[get_voice_dir()] + extra_voice_dirs, load_latents=load_latents)
 
     paths = voices[voice]
     mtime = 0
