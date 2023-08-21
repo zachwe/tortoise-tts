@@ -101,7 +101,7 @@ def get_voice( name, dir=get_voice_dir(), load_latents=True, extensions=["wav", 
     files = os.listdir(subj)
     
     if load_latents:
-        extensions.append(".pth")
+        extensions.append("pth")
 
     voice = []
     for file in files:
@@ -113,7 +113,7 @@ def get_voice( name, dir=get_voice_dir(), load_latents=True, extensions=["wav", 
 
     return sorted( voice )
 
-def get_voice_list(dir=get_voice_dir(), append_defaults=False, extensions=["wav", "mp3", "flac", "pth"]):
+def get_voice_list(dir=get_voice_dir(), append_defaults=False, load_latents=True, extensions=["wav", "mp3", "flac"]):
     defaults = [ "random", "microphone" ]
     os.makedirs(dir, exist_ok=True)
     #res = sorted([d for d in os.listdir(dir) if d not in defaults and os.path.isdir(os.path.join(dir, d)) and len(os.listdir(os.path.join(dir, d))) > 0 ])
@@ -126,7 +126,7 @@ def get_voice_list(dir=get_voice_dir(), append_defaults=False, extensions=["wav"
             continue
         if len(os.listdir(os.path.join(dir, name))) == 0:
             continue
-        files = get_voice( name, dir=dir, extensions=extensions )
+        files = get_voice( name, dir=dir, extensions=extensions, load_latents=load_latents )
 
         if len(files) > 0:
             res.append(name)
@@ -134,7 +134,7 @@ def get_voice_list(dir=get_voice_dir(), append_defaults=False, extensions=["wav"
             for subdir in os.listdir(f'{dir}/{name}'):
                 if not os.path.isdir(f'{dir}/{name}/{subdir}'):
                     continue
-                files = get_voice( f'{name}/{subdir}', dir=dir, extensions=extensions )
+                files = get_voice( f'{name}/{subdir}', dir=dir, extensions=extensions, load_latents=load_latents )
                 if len(files) == 0:
                     continue
                 res.append(f'{name}/{subdir}')
