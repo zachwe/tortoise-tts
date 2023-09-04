@@ -17,6 +17,7 @@ if __name__ == '__main__':
                                                  'Use the & character to join two voices together. Use a comma to perform inference on multiple voices.', default='pat')
     parser.add_argument('--output_path', type=str, help='Where to store outputs.', default='results/longform/')
     parser.add_argument('--preset', type=str, help='Which voice preset to use.', default='standard')
+    parser.add_argument('--use_deepspeed', type=bool, help='Use deepspeed for speed bump.', default=True)
     parser.add_argument('--regenerate', type=str, help='Comma-separated list of clip numbers to re-generate, or nothing.', default=None)
     parser.add_argument('--candidates', type=int, help='How many output candidates to produce per-voice. Only the first candidate is actually used in the final product, the others can be used manually.', default=1)
     parser.add_argument('--model_dir', type=str, help='Where to find pretrained model checkpoints. Tortoise automatically downloads these to .models, so this'
@@ -25,7 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('--produce_debug_state', type=bool, help='Whether or not to produce debug_state.pth, which can aid in reproducing problems. Defaults to true.', default=True)
 
     args = parser.parse_args()
-    tts = TextToSpeech(models_dir=args.model_dir)
+    tts = TextToSpeech(models_dir=args.model_dir, use_deepspeed=args.use_deepspeed)
 
     outpath = args.output_path
     selected_voices = args.voice.split(',')
